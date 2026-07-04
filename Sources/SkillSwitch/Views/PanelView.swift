@@ -195,6 +195,7 @@ struct BreakerBoard: View {
                         ForEach(store.circuits) { skill in
                             BreakerRow(
                                 skill: skill,
+                                subtitle: provenance(skill),
                                 canUpdate: discovery.sourceForInstalled(skill) != nil,
                                 toggle: { store.toggle(skill) },
                                 copy: { store.copyInvocation(skill) },
@@ -218,6 +219,7 @@ struct BreakerBoard: View {
                         ForEach(store.hardwired) { skill in
                             BreakerRow(
                                 skill: skill,
+                                subtitle: skill.sourceLabel,
                                 canUpdate: false,
                                 toggle: { store.toggle(skill) },
                                 copy: { store.copyInvocation(skill) },
@@ -233,6 +235,7 @@ struct BreakerBoard: View {
                 }
                 .padding(10)
             }
+            .onAppear { discovery.resolveOwners(for: store.circuits) }
             .confirmationDialog(
                 "Remove \(removalCandidate?.displayName ?? "this skill")?",
                 isPresented: Binding(
@@ -323,6 +326,19 @@ struct BreakerBoard: View {
 
     private var findSkillsInstalled: Bool {
         store.circuits.contains { $0.skillId == "find-skills" }
+    }
+
+    /// Sub-label for a circuit: who published it, when we know.
+    private func provenance(_ skill: Skill) -> String {
+        guard let source = discovery.sourceForInstalled(skill),
+              let owner = source.split(separator: "/").first.map(String.init) else {
+            return "INSTALLED"
+        }
+        switch discovery.ownerKind(of: owner) {
+        case .organization: return "ORG: \(owner)"
+        case .user: return "USER: \(owner)"
+        case nil: return "FROM: \(owner)"
+        }
     }
 
     private var findSkillsArmed: Bool {
@@ -585,6 +601,7 @@ struct BreakerBoard: View {
 
 struct BreakerRow: View {
     let skill: Skill
+    let subtitle: String
     let canUpdate: Bool
     let toggle: () -> Void
     let copy: () -> Void
@@ -605,7 +622,7 @@ struct BreakerRow: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2.5)
                     .background(RoundedRectangle(cornerRadius: 3).fill(Theme.tapeBlack))
-                Text(skill.sourceLabel.uppercased())
+                Text(subtitle.uppercased())
                     .font(.system(size: 7.5, weight: .bold))
                     .tracking(1)
                     .foregroundStyle(.white.opacity(0.35))

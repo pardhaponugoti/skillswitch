@@ -348,6 +348,20 @@ final class DiscoveryStore: ObservableObject {
             ?? SourceBook.fromFrontmatter(directory: skill.directory)
     }
 
+    func ownerKind(of owner: String) -> OwnerKind? {
+        ownerDirectory.kind(of: owner)
+    }
+
+    /// Kick off classification for the owners of installed skills that the
+    /// seed doesn't cover (e.g. skills imported from outside the shelf).
+    func resolveOwners(for installed: [Skill]) {
+        let owners = installed.compactMap { skill in
+            sourceForInstalled(skill)?.split(separator: "/").first.map(String.init)
+        }
+        guard !owners.isEmpty else { return }
+        Task { await ownerDirectory.resolve(owners) }
+    }
+
     /// Re-download an installed skill from its GitHub source, preserving its
     /// armed/off state. Returns a footer message.
     func updateInstalled(_ skill: Skill) async -> String {
