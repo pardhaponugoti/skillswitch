@@ -107,7 +107,7 @@ struct DiscoveryView: View {
                 .tracking(1.5)
                 .foregroundStyle(.white.opacity(0.35))
             ShelfChip(title: "ALL", active: store.shelf == .all) { store.shelf = .all }
-            ShelfChip(title: "USER", active: store.shelf == .user) { store.shelf = .user }
+            ShelfChip(title: "HUMAN", active: store.shelf == .user) { store.shelf = .user }
             ShelfChip(title: "ORG · \(store.orgCount)", active: store.shelf == .org) { store.shelf = .org }
             Spacer(minLength: 0)
         }
@@ -167,7 +167,7 @@ struct ShelfChip: View {
         .buttonStyle(PressStyle())
         .help(title.hasPrefix("ORG")
             ? "Skills published by companies and organizations"
-            : (title == "USER" ? "Skills published by individual people" : "Everything"))
+            : (title == "HUMAN" ? "Skills published by individual people" : "Everything"))
     }
 }
 
