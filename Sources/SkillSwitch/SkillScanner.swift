@@ -22,12 +22,40 @@ enum SkillScanner {
                 description: CoworkEnvironment.strippedDescription(rawDescription),
                 directory: env.skillsDir.appendingPathComponent(skillId, isDirectory: true),
                 source: creator == "user" ? .user : .builtin(creator),
-                enabled: entry["enabled"] as? Bool ?? true,
+                // Cowork loads every manifest entry regardless of the stored
+                // enabled flag, so entry-present IS on. Red only ever means
+                // "no entry" (the OffBook ghosts below).
+                enabled: true,
                 armed: rawDescription.hasPrefix(CoworkEnvironment.armPrefix),
                 armedAt: updatedAt
             )
         }
-        return skills.sorted {
+        // Skills the user switched OFF are absent from the manifest (the only
+        // off Cowork honors) — resurrect them as red breakers from the OffBook
+        // as long as their files are still there.
+        let manifestIds = Set(skills.map { $0.skillId.lowercased() })
+        let ghosts = OffBook.skillIds
+            .filter { !manifestIds.contains($0.lowercased()) }
+            .compactMap { skillId -> Skill? in
+                let dir = env.skillsDir.appendingPathComponent(skillId, isDirectory: true)
+                guard FileManager.default.fileExists(atPath: dir.appendingPathComponent("SKILL.md").path) else {
+                    OffBook.forget(skillId)   // files gone — nothing to flip back on
+                    return nil
+                }
+                let entry = OffBook.entry(for: skillId) ?? [:]
+                return Skill(
+                    skillId: skillId,
+                    name: entry["name"] as? String ?? skillId,
+                    description: CoworkEnvironment.strippedDescription(entry["description"] as? String ?? ""),
+                    directory: dir,
+                    source: .user,
+                    enabled: false,
+                    armed: false,
+                    armedAt: nil
+                )
+            }
+
+        return (skills + ghosts).sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
     }
@@ -89,15 +117,22 @@ enum SkillToggler {
         }
     }
 
-    /// ON arms the skill (one-shot: fires next chat, then trips); OFF disarms.
+    /// ON arms the skill (one-shot: fires next chat, then trips); OFF
+    /// unwires it — the manifest entry is removed and remembered, because
+    /// Cowork loads every entry regardless of the `enabled` flag.
     static func setEnabled(_ skill: Skill, _ enabled: Bool) throws {
         guard !skill.isHardwired else { throw ToggleError.hardwired }
         guard skill.enabled != enabled else { return }
         guard let env = CoworkEnvironment.locate() else { throw CoworkError.notFound }
         if enabled {
+            if let remembered = OffBook.entry(for: skill.skillId), (try env.entry(skillId: skill.skillId)) == nil {
+                try env.rewire(entry: remembered)
+                OffBook.forget(skill.skillId)
+            }
             try env.arm(skillId: skill.skillId)
         } else {
-            try env.disarm(skillId: skill.skillId)
+            let removed = try env.unwire(skillId: skill.skillId)
+            OffBook.record(removed, for: skill.skillId)
         }
     }
 }

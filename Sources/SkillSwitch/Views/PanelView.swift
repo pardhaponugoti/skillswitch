@@ -201,6 +201,7 @@ struct BreakerBoard: View {
                                 canUpdate: discovery.sourceForInstalled(skill) != nil,
                                 toggle: { store.toggle(skill) },
                                 copy: { store.copyInvocation(skill) },
+                                standby: { store.steadyOn(skill) },
                                 update: { updateSkill(skill) },
                                 remove: { removalCandidate = skill }
                             )
@@ -220,6 +221,7 @@ struct BreakerBoard: View {
                                 canUpdate: false,
                                 toggle: { store.toggle(skill) },
                                 copy: { store.copyInvocation(skill) },
+                                standby: {},
                                 update: {},
                                 remove: {}
                             )
@@ -511,6 +513,7 @@ struct BreakerRow: View {
     let canUpdate: Bool
     let toggle: () -> Void
     let copy: () -> Void
+    let standby: () -> Void
     let update: () -> Void
     let remove: () -> Void
 
@@ -533,11 +536,13 @@ struct BreakerRow: View {
                     .tracking(1)
                     .foregroundStyle(.white.opacity(0.35))
                     .lineLimit(1)
-                if !skill.isHardwired && skill.enabled {
-                    Text(skill.isArmed ? "CLAUDE WILL USE IT NEXT CHAT" : "USED WHEN CLAUDE SEES FIT")
+                if !skill.isHardwired {
+                    Text(skill.isArmed
+                        ? "CLAUDE WILL USE IT NEXT CHAT"
+                        : (skill.enabled ? "USED WHEN CLAUDE SEES FIT" : "OFF — CLAUDE CAN'T SEE IT"))
                         .font(.system(size: 7.5, weight: .heavy))
                         .tracking(1)
-                        .foregroundStyle((skill.isArmed ? Theme.liveGreen : Theme.safety).opacity(0.85))
+                        .foregroundStyle((skill.isArmed ? Theme.liveGreen : (skill.enabled ? Theme.safety : Theme.offRed)).opacity(0.85))
                         .lineLimit(1)
                 }
             }
@@ -548,6 +553,8 @@ struct BreakerRow: View {
 
             if !skill.isHardwired {
                 Menu {
+                    Button("On standby — use when it fits", action: standby)
+                        .disabled(skill.isSteadyOn)
                     Button("Update from GitHub", action: update)
                         .disabled(!canUpdate)
                     Divider()

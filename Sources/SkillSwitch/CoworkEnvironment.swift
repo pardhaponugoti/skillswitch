@@ -151,6 +151,43 @@ struct CoworkEnvironment {
         }
     }
 
+    /// Truly hide a user skill from Claude: remove its manifest entry, keep
+    /// its files. (Cowork loads every manifest entry into sessions regardless
+    /// of the `enabled` flag — verified against session logs — so entry
+    /// removal is the only real OFF.) Returns the removed entry so the caller
+    /// can remember it for rewiring.
+    func unwire(skillId: String) throws -> [String: Any] {
+        var manifest = try readManifest()
+        guard var entries = manifest["skills"] as? [[String: Any]] else { throw CoworkError.badManifest }
+        guard let index = entries.firstIndex(where: { $0["skillId"] as? String == skillId }) else {
+            throw CoworkError.skillMissing(skillId)
+        }
+        guard (entries[index]["creatorType"] as? String ?? "user") == "user" else {
+            throw CoworkError.builtinCollision(skillId)
+        }
+        var entry = entries.remove(at: index)
+        entry["description"] = Self.strippedDescription(entry["description"] as? String ?? "")
+        entry["enabled"] = false
+        manifest["skills"] = entries
+        try write(manifest: manifest)
+        return entry
+    }
+
+    /// Put a previously unwired entry back on the panel (OFF-shaped: the
+    /// caller arms or steadies it as a separate step).
+    func rewire(entry: [String: Any]) throws {
+        guard let skillId = entry["skillId"] as? String else { throw CoworkError.badManifest }
+        var manifest = try readManifest()
+        guard var entries = manifest["skills"] as? [[String: Any]] else { throw CoworkError.badManifest }
+        if let index = entries.firstIndex(where: { $0["skillId"] as? String == skillId }) {
+            entries[index] = entry
+        } else {
+            entries.append(entry)
+        }
+        manifest["skills"] = entries
+        try write(manifest: manifest)
+    }
+
     private func update(skillId: String, _ mutate: (inout [String: Any]) -> Void) throws {
         var manifest = try readManifest()
         guard var entries = manifest["skills"] as? [[String: Any]] else { throw CoworkError.badManifest }

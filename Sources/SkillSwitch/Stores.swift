@@ -25,7 +25,7 @@ final class SkillStore: ObservableObject {
             coworkFound = false
         }
         if coworkFound, let env = CoworkEnvironment.locate() {
-            orphans = SkillScanner.scanOrphans(env: env, manifestIds: Set(skills.map(\.skillId)))
+            orphans = SkillScanner.scanOrphans(env: env, manifestIds: Set(skills.map(\.skillId)).union(OffBook.skillIds))
             bin = SkillScanner.scanClaudeCode(
                 manifestUserIds: Set(circuits.map(\.skillId)),
                 builtinIds: Set(hardwired.map(\.skillId))
@@ -76,7 +76,12 @@ final class SkillStore: ObservableObject {
     func remove(_ skill: Skill) {
         guard !skill.isHardwired, let env = CoworkEnvironment.locate() else { return }
         do {
-            try env.remove(skillId: skill.skillId)
+            if try env.entry(skillId: skill.skillId) != nil {
+                try env.remove(skillId: skill.skillId)
+            } else {
+                try? FileManager.default.trashItem(at: skill.directory, resultingItemURL: nil)
+            }
+            OffBook.forget(skill.skillId)
             SourceBook.forget(skill.skillId)
             NSSound(named: "Pop")?.play()
             scan()
@@ -103,6 +108,25 @@ final class SkillStore: ObservableObject {
             } else {
                 message = "\(skill.displayName) is ARMED — it fires at the start of your next Cowork chat, then trips off."
             }
+        } catch {
+            scan()
+            message = error.localizedDescription
+        }
+    }
+
+    /// Yellow from any state: on the panel, no fire-now prefix — Claude
+    /// uses it whenever it makes sense.
+    func steadyOn(_ skill: Skill) {
+        guard !skill.isHardwired, let env = CoworkEnvironment.locate() else { return }
+        do {
+            if let remembered = OffBook.entry(for: skill.skillId), (try env.entry(skillId: skill.skillId)) == nil {
+                try env.rewire(entry: remembered)
+                OffBook.forget(skill.skillId)
+            }
+            try env.setSteadyOn(skillId: skill.skillId)
+            NSSound(named: "Pop")?.play()
+            scan()
+            message = "\(skill.displayName) is on standby — Claude uses it whenever it makes sense."
         } catch {
             scan()
             message = error.localizedDescription
@@ -138,6 +162,10 @@ final class SkillStore: ObservableObject {
     func energize(_ persona: Persona) {
         guard let env = CoworkEnvironment.locate() else { return }
         for member in persona.members where circuits.contains(where: { $0.skillId == member.skillId }) {
+            if let remembered = OffBook.entry(for: member.skillId), (try? env.entry(skillId: member.skillId)) == nil {
+                try? env.rewire(entry: remembered)
+                OffBook.forget(member.skillId)
+            }
             try? env.setSteadyOn(skillId: member.skillId)
         }
         NSSound(named: "Pop")?.play()
@@ -148,7 +176,9 @@ final class SkillStore: ObservableObject {
     func unplug(_ persona: Persona) {
         guard let env = CoworkEnvironment.locate() else { return }
         for member in persona.members where circuits.contains(where: { $0.skillId == member.skillId }) {
-            try? env.disarm(skillId: member.skillId)
+            if let removed = try? env.unwire(skillId: member.skillId) {
+                OffBook.record(removed, for: member.skillId)
+            }
         }
         NSSound(named: "Pop")?.play()
         scan()
@@ -190,7 +220,9 @@ final class SkillStore: ObservableObject {
         guard !fired.isEmpty, let env = CoworkEnvironment.locate() else { return }
 
         for skillId in fired {
-            try? env.disarm(skillId: skillId)
+            if let removed = try? env.unwire(skillId: skillId) {
+                OffBook.record(removed, for: skillId)
+            }
         }
         NSSound(named: "Funk")?.play()
         let names = skills

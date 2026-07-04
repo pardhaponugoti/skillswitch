@@ -580,9 +580,10 @@
         Every skill in Claude Cowork's own list gets a rocker switch. Flipping one ON
         <strong>arms</strong> it — your next chat invokes the skill right at the start,
         no typing required. The moment it fires, the breaker <strong>trips</strong> back
-        off, like a well-behaved fuse. Two promises, two colors: <strong>yellow</strong>
-        means Claude uses a skill when it makes sense; <strong>green</strong> means
-        it will definitely fire next chat. Your skill files stay right where they are.
+        off, like a well-behaved fuse. Three colors, three truths: <strong>red</strong> —
+        Claude can't see the skill at all; <strong>yellow</strong> — Claude uses it
+        when it makes sense; <strong>green</strong> — it will definitely fire next
+        chat. Your skill files stay right where they are.
         Skills that ship with Claude show up as <strong>hardwired</strong> circuits:
         always on.
       </p>
@@ -712,11 +713,11 @@
     <details>
       <summary>Is switching something off destructive?</summary>
       <div class="a">
-        No. A breaker edits the skill's entry in Cowork's skill list — its
-        <code>enabled</code> flag, plus a fire-now note in the description while
-        armed — and the skill's files aren't touched. Flipping it back restores
-        everything. (Reinstalling a skill from Add Skills replaces that skill's
-        folder with the fresh copy, as you'd expect.)
+        No. Switching off removes the skill's entry from Cowork's list — that's
+        what actually hides it from Claude — while the skill's files stay exactly
+        where they are, and SkillSwitch remembers the entry so flipping back on
+        restores it perfectly. (Reinstalling a skill from Add Skills replaces that
+        skill's folder with a fresh copy, as you'd expect.)
       </div>
     </details>
     <details>
@@ -817,7 +818,7 @@
       click(nowOn ? 220 : 140);
       statusEl.textContent = nowOn
         ? name + " is armed — Claude will definitely use it next chat, then the breaker trips."
-        : name + " disarmed.";
+        : name + " switched off — Claude can't see it now.";
       updateCount();
     });
   });
