@@ -590,20 +590,25 @@ struct PersonaRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
+            RockerSwitch(
+                isOn: fullyOn,
+                hardwired: false,
+                steady: true,
+                helpOverride: fullyOn
+                    ? "ON — this persona's skills are steady on in every chat. Click to switch off."
+                    : "OFF — click to install anything missing and switch the whole persona on."
+            ) {
+                fullyOn ? unplug() : energize()
+            }
+
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(persona.name)
-                        .font(.system(size: 10.5, weight: .bold, design: .monospaced))
-                        .tracking(0.5)
-                        .foregroundStyle(.white.opacity(0.92))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2.5)
-                        .background(RoundedRectangle(cornerRadius: 3).fill(Theme.tapeBlack))
-                    Circle()
-                        .fill(fullyOn ? Theme.liveGreen : Theme.deadGray.opacity(0.6))
-                        .frame(width: 6, height: 6)
-                        .shadow(color: fullyOn ? Theme.liveGreen.opacity(0.9) : .clear, radius: 3)
-                }
+                Text(persona.name)
+                    .font(.system(size: 10.5, weight: .bold, design: .monospaced))
+                    .tracking(0.5)
+                    .foregroundStyle(.white.opacity(0.92))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2.5)
+                    .background(RoundedRectangle(cornerRadius: 3).fill(Theme.tapeBlack))
                 Text(persona.blurb)
                     .font(.system(size: 9))
                     .foregroundStyle(.white.opacity(0.5))
@@ -616,20 +621,10 @@ struct PersonaRow: View {
 
             Spacer(minLength: 8)
 
-            Button(action: fullyOn ? unplug : energize) {
-                Text(fullyOn ? "UNPLUG" : "ENERGIZE")
-                    .tracking(1)
-                    .font(.system(size: 9, weight: .heavy, design: .rounded))
-                    .foregroundStyle(fullyOn ? AnyShapeStyle(.white.opacity(0.7)) : AnyShapeStyle(Theme.tapeBlack))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(fullyOn ? AnyShapeStyle(Color.white.opacity(0.12)) : AnyShapeStyle(Theme.liveGreen)))
-                    .overlay(Capsule().stroke(.black.opacity(0.4), lineWidth: 1))
-            }
-            .buttonStyle(PressStyle())
-            .help(fullyOn
-                ? "Switch this persona's skills off"
-                : "Install anything missing and hold this persona's skills steadily ON (green) for every chat")
+            Circle()
+                .fill(fullyOn ? Theme.liveGreen : Theme.offRed.opacity(0.55))
+                .frame(width: 6, height: 6)
+                .shadow(color: fullyOn ? Theme.liveGreen.opacity(0.9) : .clear, radius: 3)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -827,6 +822,7 @@ struct RockerSwitch: View {
     let isOn: Bool
     let hardwired: Bool
     var steady: Bool = false
+    var helpOverride: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -877,11 +873,11 @@ struct RockerSwitch: View {
             .frame(width: 60, height: 30)
         }
         .buttonStyle(.plain)
-        .help(hardwired
+        .help(helpOverride ?? (hardwired
             ? "Built into Claude — always on"
             : (steady ? "ON — available in every chat (persona). Click to switch off."
                 : (isOn ? "ARMED — fires once at the start of your next Cowork chat, then trips off. Click to disarm."
-                        : "OFF — click to arm for your next chat")))
+                        : "OFF — click to arm for your next chat"))))
     }
 
     private var paddleColor: Color {
