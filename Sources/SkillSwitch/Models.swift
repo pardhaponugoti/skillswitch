@@ -38,6 +38,28 @@ struct Skill: Identifiable, Hashable {
     }
 }
 
+/// A skill that exists on disk but isn't wired into Cowork's manifest: an
+/// orphan folder inside Cowork's own skills dir, or a skill living in Claude
+/// Code's ~/.claude/skills.
+struct ExternalSkill: Identifiable, Hashable {
+    enum Status: Hashable {
+        case importable        // one click wires it in
+        case nameTaken         // collides with a Cowork built-in
+    }
+
+    let skillId: String
+    let name: String
+    let description: String
+    let directory: URL
+    let status: Status
+
+    var id: String { directory.path }
+
+    var displayName: String {
+        name.split(separator: "-").map { $0.capitalized }.joined(separator: " ")
+    }
+}
+
 /// Minimal YAML-frontmatter reader: enough for SKILL.md files (flat key: value
 /// pairs, quoted values, block scalars, and indented continuation lines).
 enum Frontmatter {

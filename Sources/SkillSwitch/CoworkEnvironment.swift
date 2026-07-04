@@ -155,7 +155,7 @@ struct CoworkEnvironment {
 
     /// Add (or refresh) a user skill entry. The skill's files must already be
     /// in `skills/<skillId>/`.
-    func register(skillId: String, name: String, description: String) throws {
+    func register(skillId: String, name: String, description: String, enabled: Bool = true) throws {
         var manifest = try readManifest()
         guard var entries = manifest["skills"] as? [[String: Any]] else { throw CoworkError.badManifest }
 
@@ -170,12 +170,91 @@ struct CoworkEnvironment {
         entry["description"] = description
         entry["creatorType"] = "user"
         entry["syncManaged"] = false
-        entry["enabled"] = true
+        entry["enabled"] = enabled
         entry["updatedAt"] = Self.timestamp()
 
         if let index { entries[index] = entry } else { entries.append(entry) }
         manifest["skills"] = entries
         try write(manifest: manifest)
+    }
+
+    /// Remove a user skill: drop its manifest entry and move its folder to
+    /// the Trash (recoverable, never a hard delete). Built-ins are refused.
+    func remove(skillId: String) throws {
+        var manifest = try readManifest()
+        guard var entries = manifest["skills"] as? [[String: Any]] else { throw CoworkError.badManifest }
+        guard let index = entries.firstIndex(where: { $0["skillId"] as? String == skillId }) else {
+            throw CoworkError.skillMissing(skillId)
+        }
+        guard (entries[index]["creatorType"] as? String ?? "user") == "user" else {
+            throw CoworkError.builtinCollision(skillId)
+        }
+        entries.remove(at: index)
+        manifest["skills"] = entries
+        try write(manifest: manifest)
+
+        let folder = skillsDir.appendingPathComponent(skillId, isDirectory: true)
+        if FileManager.default.fileExists(atPath: folder.path) {
+            try? FileManager.default.trashItem(at: folder, resultingItemURL: nil)
+        }
+    }
+
+    /// Copy a skill folder from outside Cowork (e.g. Claude Code's
+    /// ~/.claude/skills) into `skills/<skillId>/` and register it, OFF.
+    /// Dotfiles and .git trees stay behind; the same size caps as the
+    /// downloader apply so a stray symlink can't vacuum a home directory in.
+    func importFolder(at sourceDir: URL, skillId: String) throws {
+        let fm = FileManager.default
+        let staging = fm.temporaryDirectory.appendingPathComponent("skillswitch-import-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: staging) }
+
+        var fileCount = 0
+        var totalBytes = 0
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]
+        // Resolve /var vs /private/var style symlinks up front so relative
+        // paths computed against the base always line up.
+        let base = sourceDir.resolvingSymlinksInPath()
+        guard let enumerator = fm.enumerator(at: base, includingPropertiesForKeys: Array(keys), options: [.skipsHiddenFiles]) else {
+            throw CoworkError.badManifest
+        }
+        for case let url as URL in enumerator {
+            let values = try? url.resourceValues(forKeys: keys)
+            if values?.isSymbolicLink == true { continue }
+            guard values?.isRegularFile == true else { continue }
+            fileCount += 1
+            totalBytes += values?.fileSize ?? 0
+            guard fileCount <= 500, totalBytes <= 100_000_000 else { throw CoworkError.badManifest }
+
+            let subpath = url.resolvingSymlinksInPath().path
+                .dropFirst(base.path.count)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            let dest = staging.appendingPathComponent(subpath)
+            try fm.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try fm.copyItem(at: url, to: dest)
+        }
+
+        let meta = Frontmatter.parse(
+            (try? String(contentsOf: staging.appendingPathComponent("SKILL.md"), encoding: .utf8)) ?? ""
+        )
+        let destRoot = skillsDir.appendingPathComponent(skillId, isDirectory: true)
+        try fm.createDirectory(at: skillsDir, withIntermediateDirectories: true)
+        let backup = skillsDir.appendingPathComponent(".replacing-\(skillId)-\(UUID().uuidString)")
+        let hadPrevious = fm.fileExists(atPath: destRoot.path)
+        if hadPrevious { try fm.moveItem(at: destRoot, to: backup) }
+        do {
+            try fm.moveItem(at: staging, to: destRoot)
+        } catch {
+            if hadPrevious { try? fm.moveItem(at: backup, to: destRoot) }
+            throw error
+        }
+        if hadPrevious { try? fm.removeItem(at: backup) }
+
+        try register(
+            skillId: skillId,
+            name: meta["name"] ?? skillId,
+            description: Self.strippedDescription(meta["description"] ?? ""),
+            enabled: false
+        )
     }
 
     private static func timestamp() -> String {

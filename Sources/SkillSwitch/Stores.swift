@@ -4,6 +4,8 @@ import SwiftUI
 @MainActor
 final class SkillStore: ObservableObject {
     @Published private(set) var skills: [Skill] = []
+    @Published private(set) var orphans: [ExternalSkill] = []
+    @Published private(set) var bin: [ExternalSkill] = []
     @Published private(set) var coworkFound = true
     @Published var message = ""
 
@@ -22,7 +24,67 @@ final class SkillStore: ObservableObject {
             skills = []
             coworkFound = false
         }
+        if coworkFound, let env = CoworkEnvironment.locate() {
+            orphans = SkillScanner.scanOrphans(env: env, manifestIds: Set(skills.map(\.skillId)))
+            bin = SkillScanner.scanClaudeCode(
+                manifestUserIds: Set(circuits.map(\.skillId)),
+                builtinIds: Set(hardwired.map(\.skillId))
+            )
+        } else {
+            orphans = []
+            bin = []
+        }
         syncTripWatcher()
+    }
+
+    /// Wire an orphan folder (already inside Cowork's skills dir) into the
+    /// manifest, OFF.
+    func wireIn(_ orphan: ExternalSkill) {
+        guard let env = CoworkEnvironment.locate() else { return }
+        do {
+            try env.register(
+                skillId: orphan.skillId, name: orphan.name,
+                description: orphan.description, enabled: false
+            )
+            NSSound(named: "Pop")?.play()
+            scan()
+            message = "\(orphan.displayName) wired in — flip to arm."
+        } catch {
+            scan()
+            message = error.localizedDescription
+        }
+    }
+
+    /// Copy a Claude Code skill into Cowork and register it, OFF.
+    func importPart(_ part: ExternalSkill) {
+        guard part.status == .importable, let env = CoworkEnvironment.locate() else { return }
+        do {
+            try env.importFolder(at: part.directory, skillId: part.skillId)
+            if let source = SourceBook.fromFrontmatter(directory: part.directory) {
+                SourceBook.record(source, for: part.skillId)
+            }
+            NSSound(named: "Pop")?.play()
+            scan()
+            message = "\(part.displayName) imported from Claude Code — flip to arm."
+        } catch {
+            scan()
+            message = error.localizedDescription
+        }
+    }
+
+    /// Remove a user skill: manifest entry dropped, folder to the Trash.
+    func remove(_ skill: Skill) {
+        guard !skill.isHardwired, let env = CoworkEnvironment.locate() else { return }
+        do {
+            try env.remove(skillId: skill.skillId)
+            SourceBook.forget(skill.skillId)
+            NSSound(named: "Pop")?.play()
+            scan()
+            message = "\(skill.displayName) removed — its folder is in the Trash."
+        } catch {
+            scan()
+            message = error.localizedDescription
+        }
     }
 
     func toggle(_ skill: Skill) {

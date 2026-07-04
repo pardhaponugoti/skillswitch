@@ -43,6 +43,10 @@ struct PanelView: View {
                 NSSound(named: "Pop")?.play()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            store.scan()
+            discovery.refreshInstalled()
+        }
     }
 
     private var tabs: some View {
@@ -58,7 +62,7 @@ struct PanelView: View {
         Group {
             switch tab {
             case .breakers:
-                BreakerBoard(store: store) { tab = .add }
+                BreakerBoard(store: store, discovery: discovery) { tab = .add }
             case .add:
                 DiscoveryView(store: discovery)
             }
@@ -90,13 +94,15 @@ struct PanelView: View {
             Button {
                 store.scan()
                 discovery.refreshInstalled()
+                Task { await discovery.load(force: true) }
+                store.message = "Rescanned."
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Theme.inkDark.opacity(0.7))
             }
             .buttonStyle(.plain)
-            .help("Rescan skills")
+            .help("Rescan the panel and refresh the skills.sh shelf")
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 10)
@@ -163,7 +169,11 @@ struct PanelTab: View {
 
 struct BreakerBoard: View {
     @ObservedObject var store: SkillStore
+    @ObservedObject var discovery: DiscoveryStore
     var addSkills: () -> Void
+
+    @State private var removalCandidate: Skill?
+    @AppStorage("binExpanded") private var binExpanded = false
 
     var body: some View {
         if !store.coworkFound {
@@ -173,16 +183,22 @@ struct BreakerBoard: View {
         } else {
             ScrollView {
                 VStack(spacing: 8) {
-                    if store.circuits.isEmpty {
+                    if store.circuits.isEmpty && store.orphans.isEmpty {
                         miniEmptyCircuits
                     } else {
                         sectionHeader("CIRCUITS", detail: "flip to arm · fires once next chat")
                         ForEach(store.circuits) { skill in
-                            BreakerRow(skill: skill) {
-                                store.toggle(skill)
-                            } copy: {
-                                store.copyInvocation(skill)
-                            }
+                            BreakerRow(
+                                skill: skill,
+                                canUpdate: discovery.sourceForInstalled(skill) != nil,
+                                toggle: { store.toggle(skill) },
+                                copy: { store.copyInvocation(skill) },
+                                update: { updateSkill(skill) },
+                                remove: { removalCandidate = skill }
+                            )
+                        }
+                        ForEach(store.orphans) { orphan in
+                            UnwiredRow(part: orphan) { store.wireIn(orphan) }
                         }
                     }
 
@@ -190,15 +206,80 @@ struct BreakerBoard: View {
                         sectionHeader("HARDWIRED", detail: "built into Claude · always on")
                             .padding(.top, 8)
                         ForEach(store.hardwired) { skill in
-                            BreakerRow(skill: skill) {
-                                store.toggle(skill)
-                            } copy: {
-                                store.copyInvocation(skill)
-                            }
+                            BreakerRow(
+                                skill: skill,
+                                canUpdate: false,
+                                toggle: { store.toggle(skill) },
+                                copy: { store.copyInvocation(skill) },
+                                update: {},
+                                remove: {}
+                            )
                         }
+                    }
+
+                    if !store.bin.isEmpty {
+                        binSection
                     }
                 }
                 .padding(10)
+            }
+            .confirmationDialog(
+                "Remove \(removalCandidate?.displayName ?? "this skill")?",
+                isPresented: Binding(
+                    get: { removalCandidate != nil },
+                    set: { if !$0 { removalCandidate = nil } }
+                )
+            ) {
+                Button("Remove — folder goes to the Trash", role: .destructive) {
+                    if let skill = removalCandidate { store.remove(skill) }
+                    removalCandidate = nil
+                }
+                Button("Cancel", role: .cancel) { removalCandidate = nil }
+            } message: {
+                Text("Its breaker disappears from the panel and the skill folder is moved to the Trash — drag it back out if you change your mind.")
+            }
+        }
+    }
+
+    private func updateSkill(_ skill: Skill) {
+        store.message = "Updating \(skill.displayName)…"
+        Task {
+            let result = await discovery.updateInstalled(skill)
+            store.scan()
+            store.message = result
+        }
+    }
+
+    private var binSection: some View {
+        VStack(spacing: 8) {
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { binExpanded.toggle() }
+            } label: {
+                HStack {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(Theme.safety.opacity(0.9))
+                        .rotationEffect(.degrees(binExpanded ? 90 : 0))
+                    Text("SPARE PARTS BIN")
+                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .tracking(2)
+                        .foregroundStyle(Theme.safety.opacity(0.9))
+                    Spacer()
+                    Text("FROM CLAUDE CODE · \(store.bin.count)")
+                        .font(.system(size: 7.5, weight: .bold, design: .rounded))
+                        .tracking(1)
+                        .foregroundStyle(.white.opacity(0.3))
+                }
+                .padding(.horizontal, 4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 8)
+
+            if binExpanded {
+                ForEach(store.bin) { part in
+                    BinRow(part: part) { store.importPart(part) }
+                }
             }
         }
     }
@@ -298,8 +379,11 @@ struct BreakerBoard: View {
 
 struct BreakerRow: View {
     let skill: Skill
+    let canUpdate: Bool
     let toggle: () -> Void
     let copy: () -> Void
+    let update: () -> Void
+    let remove: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -326,6 +410,23 @@ struct BreakerRow: View {
 
             Spacer(minLength: 4)
 
+            if !skill.isHardwired {
+                Menu {
+                    Button("Update from GitHub", action: update)
+                        .disabled(!canUpdate)
+                    Divider()
+                    Button("Remove…", role: .destructive, action: remove)
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.35))
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Update or remove this skill")
+            }
+
             Circle()
                 .fill(dotColor)
                 .frame(width: 6, height: 6)
@@ -346,6 +447,111 @@ struct BreakerRow: View {
     private var dotColor: Color {
         guard skill.enabled else { return Theme.offRed.opacity(0.55) }
         return skill.isArmed ? Theme.safety : Theme.liveGreen
+    }
+}
+
+/// A folder found inside Cowork's skills dir with no manifest entry — one
+/// click wires it onto the panel.
+struct UnwiredRow: View {
+    let part: ExternalSkill
+    let wireIn: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: wireIn) {
+                Text("WIRE IN")
+                    .font(.system(size: 8, weight: .heavy, design: .rounded))
+                    .tracking(1)
+                    .foregroundStyle(Theme.tapeBlack)
+                    .frame(width: 60, height: 30)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Theme.safety))
+                    .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(.black.opacity(0.4), lineWidth: 1))
+            }
+            .buttonStyle(PressStyle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(part.name.uppercased())
+                    .font(.system(size: 10.5, weight: .bold, design: .monospaced))
+                    .tracking(0.5)
+                    .foregroundStyle(.white.opacity(0.92))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2.5)
+                    .background(RoundedRectangle(cornerRadius: 3).fill(Theme.tapeBlack))
+                Text("UNWIRED — FOUND IN THE BOX")
+                    .font(.system(size: 7.5, weight: .bold))
+                    .tracking(1)
+                    .foregroundStyle(Theme.safety.opacity(0.7))
+            }
+            .help(part.description.isEmpty ? "No description" : part.description)
+
+            Spacer(minLength: 4)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Theme.breaker.opacity(0.55))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(Theme.safety.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+        )
+    }
+}
+
+/// A Claude Code skill (~/.claude/skills) importable into Cowork.
+struct BinRow: View {
+    let part: ExternalSkill
+    let importPart: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(part.name.uppercased())
+                    .font(.system(size: 10.5, weight: .bold, design: .monospaced))
+                    .tracking(0.5)
+                    .foregroundStyle(.white.opacity(part.status == .importable ? 0.92 : 0.45))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2.5)
+                    .background(RoundedRectangle(cornerRadius: 3).fill(Theme.tapeBlack))
+                Text(part.status == .importable ? "~/.CLAUDE/SKILLS" : "NAME TAKEN BY A BUILT-IN")
+                    .font(.system(size: 7.5, weight: .bold))
+                    .tracking(1)
+                    .foregroundStyle(.white.opacity(0.35))
+            }
+            .help(part.description.isEmpty ? "No description" : part.description)
+
+            Spacer(minLength: 4)
+
+            if part.status == .importable {
+                Button(action: importPart) {
+                    Text("IMPORT")
+                        .tracking(1)
+                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Theme.tapeBlack)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Theme.safety))
+                        .overlay(Capsule().stroke(.black.opacity(0.4), lineWidth: 1))
+                }
+                .buttonStyle(PressStyle())
+                .help("Copy into Claude Cowork and put it on the panel")
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Theme.breaker.opacity(0.55))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(.white.opacity(0.07), lineWidth: 1)
+        )
     }
 }
 

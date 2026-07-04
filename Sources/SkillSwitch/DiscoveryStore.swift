@@ -138,8 +138,9 @@ final class DiscoveryStore: ObservableObject {
         installedNames = Set(names.filter { !$0.hasPrefix(".") })
     }
 
-    func load() async {
-        guard skills.isEmpty, !isLoading else { return }
+    func load(force: Bool = false) async {
+        guard force || skills.isEmpty, !isLoading else { return }
+        if force { skills = [] }
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
@@ -328,6 +329,7 @@ final class DiscoveryStore: ObservableObject {
                 name: meta["name"] ?? skill.skillId,
                 description: meta["description"] ?? ""
             )
+            SourceBook.record(skill.source, for: skill.skillId)
             // A fresh install comes up armed: it fires in the next chat, then trips.
             try env.arm(skillId: skill.skillId)
 
@@ -336,5 +338,35 @@ final class DiscoveryStore: ObservableObject {
         } catch {
             errorMessage = "Install failed: \(error.localizedDescription)"
         }
+    }
+
+    /// Where an installed skill came from: recorded at install time, else
+    /// matched against the shelf, else read from its SKILL.md frontmatter.
+    func sourceForInstalled(_ skill: Skill) -> String? {
+        SourceBook.source(for: skill.skillId)
+            ?? skills.first { $0.skillId == skill.skillId }?.source
+            ?? SourceBook.fromFrontmatter(directory: skill.directory)
+    }
+
+    /// Re-download an installed skill from its GitHub source, preserving its
+    /// armed/off state. Returns a footer message.
+    func updateInstalled(_ skill: Skill) async -> String {
+        guard let source = sourceForInstalled(skill) else {
+            return "Can't tell where \(skill.displayName) came from — no update source on file."
+        }
+        let wasArmed = skill.isArmed
+        let shelfSkill = DiscoverySkill(source: source, skillId: skill.skillId, installs: 0, isOfficial: false)
+        await install(shelfSkill)
+        if let failure = errorMessage {
+            return failure.replacingOccurrences(of: "Install failed", with: "Update failed")
+        }
+        if let env = CoworkEnvironment.locate() {
+            if wasArmed {
+                try? env.arm(skillId: skill.skillId)
+            } else {
+                try? env.disarm(skillId: skill.skillId)
+            }
+        }
+        return "\(skill.displayName) updated from \(source)."
     }
 }
