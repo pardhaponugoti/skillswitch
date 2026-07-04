@@ -468,16 +468,40 @@
       </div>
 
       <div class="interior">
-        <div class="sect"><span class="t">PERSONAS</span><span class="d">ONE FLIP · WHOLE TOOLKIT</span></div>
+        <div class="sect"><span class="t">PERSONAS</span><span class="d">ONE FLIP · CLAUDE PLAYS THE ROLE</span></div>
 
-        <div class="breaker persona-row" id="personaRow">
-          <button class="rocker" id="personaRocker" aria-label="Toggle Sparring Partner persona">
+        <div class="breaker persona-row live" data-persona="sparring" data-members="grill-me,brainstorming,writing-plans">
+          <button class="rocker on" aria-label="Toggle Sparring Partner persona">
             <span class="oi"><span class="o">O</span><span class="i">I</span></span>
             <span class="paddle"></span>
           </button>
           <div class="brk-labels">
             <span class="tape-label">SPARRING PARTNER</span>
             <span class="src-label">Grills ideas · brainstorms · writes plans</span>
+          </div>
+          <span class="led"></span>
+        </div>
+
+        <div class="breaker persona-row" data-persona="marketer" data-members="">
+          <button class="rocker" aria-label="Toggle Marketer persona">
+            <span class="oi"><span class="o">O</span><span class="i">I</span></span>
+            <span class="paddle"></span>
+          </button>
+          <div class="brk-labels">
+            <span class="tape-label">MARKETER</span>
+            <span class="src-label">Copy · content strategy · SEO</span>
+          </div>
+          <span class="led"></span>
+        </div>
+
+        <div class="breaker persona-row" data-persona="editor" data-members="">
+          <button class="rocker" aria-label="Toggle Editor persona">
+            <span class="oi"><span class="o">O</span><span class="i">I</span></span>
+            <span class="paddle"></span>
+          </button>
+          <div class="brk-labels">
+            <span class="tape-label">EDITOR</span>
+            <span class="src-label">Sharpens structure, rhythm, copy</span>
           </div>
           <span class="led"></span>
         </div>
@@ -785,25 +809,29 @@
     countEl.textContent = live + " LIVE";
   }
 
-  var personaRocker = document.getElementById("personaRocker");
-  var personaMembers = ["grill-me", "brainstorming", "writing-plans"];
-  personaRocker.addEventListener("click", function () {
-    var on = personaRocker.classList.toggle("on");
-    document.getElementById("personaRow").classList.toggle("live", on);
-    personaMembers.forEach(function (id) {
-      var breaker = document.querySelector('.breaker[data-skill="' + id + '"]');
-      if (!breaker) return;
-      breaker.classList.toggle("live", on);
-      breaker.querySelector(".rocker").classList.toggle("on", on);
+  document.querySelectorAll(".persona-row").forEach(function (row) {
+    var rocker = row.querySelector(".rocker");
+    var name = row.querySelector(".tape-label").textContent;
+    var members = (row.getAttribute("data-members") || "").split(",").filter(Boolean);
+    rocker.addEventListener("click", function () {
+      var on = rocker.classList.toggle("on");
+      row.classList.toggle("live", on);
+      members.forEach(function (id) {
+        var breaker = document.querySelector('.breaker[data-skill="' + id + '"]');
+        if (!breaker) return;
+        breaker.classList.toggle("live", on);
+        breaker.querySelector(".rocker").classList.toggle("on", on);
+      });
+      click(on ? 220 : 140);
+      var count = members.length ? members.length + " skills" : "its skills";
+      statusEl.textContent = on
+        ? name + " on — Claude plays the role (" + count + " on)."
+        : name + " off.";
+      updateCount();
     });
-    click(on ? 220 : 140);
-    statusEl.textContent = on
-      ? "Sparring Partner is on — Claude uses these whenever they make sense."
-      : "Sparring Partner unplugged.";
-    updateCount();
   });
 
-  document.querySelectorAll(".rocker:not(#personaRocker)").forEach(function (rocker) {
+  document.querySelectorAll(".breaker:not(.persona-row) .rocker").forEach(function (rocker) {
     rocker.addEventListener("click", function () {
       var breaker = rocker.closest(".breaker");
       var name = breaker.getAttribute("data-skill");
