@@ -37,7 +37,6 @@ struct PanelView: View {
         .frame(minHeight: 660, idealHeight: 780)
         .onAppear {
             store.scan()
-            store.ensureTesterInstalled()
             discovery.onInstall = { [weak store] name in
                 store?.scan()
                 store?.message = "\(name) installed and ARMED — it fires in your next Cowork chat."
@@ -92,20 +91,6 @@ struct PanelView: View {
                 .foregroundStyle(Theme.inkDark.opacity(0.65))
                 .lineLimit(2)
             Spacer(minLength: 6)
-            Button {
-                store.pressTest()
-            } label: {
-                Text("TEST")
-                    .font(.system(size: 8.5, weight: .heavy, design: .rounded))
-                    .tracking(1.5)
-                    .foregroundStyle(store.tester?.isArmed == true ? AnyShapeStyle(Theme.tapeBlack) : AnyShapeStyle(Theme.inkDark.opacity(0.7)))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3.5)
-                    .background(Capsule().fill(store.tester?.isArmed == true ? AnyShapeStyle(Theme.safety) : AnyShapeStyle(Color.black.opacity(0.08))))
-                    .overlay(Capsule().stroke(.black.opacity(0.3), lineWidth: 1))
-            }
-            .buttonStyle(PressStyle())
-            .help("Arm the circuit tester — it verifies your setup at the start of your next Cowork chat, then trips off")
             Button {
                 store.scan()
                 discovery.refreshInstalled()
@@ -222,8 +207,10 @@ struct BreakerBoard: View {
                         }
                     }
 
-                    personasSection
-                        .padding(.top, 8)
+                    if !store.personas.isEmpty || store.circuits.count >= 3 {
+                        personasSection
+                            .padding(.top, 8)
+                    }
 
                     if !store.hardwired.isEmpty {
                         sectionHeader("HARDWIRED", detail: "built into Claude · always on")
@@ -338,6 +325,10 @@ struct BreakerBoard: View {
         store.circuits.contains { $0.skillId == "find-skills" }
     }
 
+    private var findSkillsArmed: Bool {
+        store.circuits.first { $0.skillId == "find-skills" }?.isArmed == true
+    }
+
     private func energize(_ persona: Persona) {
         store.message = "Wiring \(persona.name.capitalized)…"
         Task {
@@ -394,28 +385,31 @@ struct BreakerBoard: View {
                         ))
                         try? CoworkEnvironment.locate()?.disarm(skillId: "find-skills")
                         store.scan()
-                        store.message = "find-skills is on the panel — leave it OFF for now."
+                        store.message = "find-skills is on the panel."
                     }
                 } label: { checklistButton("INSTALL") }
                 .buttonStyle(PressStyle())
             }
 
             checklistRow(
-                number: "2", done: store.tester?.isArmed == true,
-                text: "Press TEST, then open a Cowork chat and say hi. The tester checks your wiring and trips off."
-            ) {
-                Button { store.pressTest() } label: { checklistButton("TEST") }
-                    .buttonStyle(PressStyle())
-            }
-
-            checklistRow(
-                number: "3", done: false,
-                text: "Flip find-skills's breaker, open a fresh Cowork chat, and ask for skills that fit your work."
+                number: "2", done: findSkillsArmed,
+                text: "Flip it on, open a Cowork chat, and ask for skills that fit your work."
             ) {
                 Button {
-                    withAnimation { commissioned = true }
-                } label: { checklistButton("DONE") }
+                    if let skill = store.circuits.first(where: { $0.skillId == "find-skills" }), !skill.enabled {
+                        store.toggle(skill)
+                    } else {
+                        store.message = "Install find-skills first — step 1."
+                    }
+                } label: { checklistButton("FLIP ON") }
                 .buttonStyle(PressStyle())
+            }
+        }
+        .onChange(of: findSkillsArmed) { _, armed in
+            if armed {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    withAnimation { commissioned = true }
+                }
             }
         }
         .padding(10)
