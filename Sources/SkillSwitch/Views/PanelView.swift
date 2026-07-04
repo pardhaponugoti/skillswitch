@@ -341,14 +341,21 @@ struct BreakerBoard: View {
     private func energize(_ persona: Persona) {
         store.message = "Wiring \(persona.name.capitalized)…"
         Task {
+            var skippedUnsourced = 0
             for member in persona.members where !store.circuits.contains(where: { $0.skillId == member.skillId }) {
+                guard let source = member.source else {
+                    skippedUnsourced += 1
+                    continue
+                }
                 await discovery.install(DiscoverySkill(
-                    source: member.source, skillId: member.skillId, installs: 0, isOfficial: false
+                    source: source, skillId: member.skillId, installs: 0, isOfficial: false
                 ))
             }
             store.scan()
             store.energize(persona)
-            store.message = "\(persona.name.capitalized) energized — its breakers are steady ON (green) for every chat."
+            store.message = skippedUnsourced > 0
+                ? "\(persona.name.capitalized) energized — \(skippedUnsourced) local skill(s) couldn't be reinstalled (no known source)."
+                : "\(persona.name.capitalized) energized — its breakers are steady ON (green) for every chat."
         }
     }
 
