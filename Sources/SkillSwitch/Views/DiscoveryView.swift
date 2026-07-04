@@ -102,7 +102,7 @@ struct DiscoveryView: View {
 
     private var authorChips: some View {
         HStack(spacing: 6) {
-            Text("AUTHOR")
+            Text("AUTHOR TYPE")
                 .font(.system(size: 8, weight: .heavy, design: .rounded))
                 .tracking(1.5)
                 .foregroundStyle(.white.opacity(0.35))
