@@ -516,7 +516,7 @@ struct BreakerRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            RockerSwitch(isOn: skill.enabled, hardwired: skill.isHardwired, steady: skill.isSteadyOn, action: toggle)
+            RockerSwitch(isOn: skill.enabled, hardwired: skill.isHardwired, steady: skill.isSteadyOn, armed: skill.isArmed, action: toggle)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(skill.name.uppercased())
@@ -574,8 +574,7 @@ struct BreakerRow: View {
     }
 
     private var dotColor: Color {
-        guard skill.enabled else { return Theme.offRed.opacity(0.55) }
-        return skill.isArmed ? Theme.safety : Theme.liveGreen
+        skill.enabled ? Theme.liveGreen : Theme.offRed.opacity(0.55)
     }
 }
 
@@ -822,6 +821,7 @@ struct RockerSwitch: View {
     let isOn: Bool
     let hardwired: Bool
     var steady: Bool = false
+    var armed: Bool = false
     var helpOverride: String? = nil
     let action: () -> Void
 
@@ -860,7 +860,9 @@ struct RockerSwitch: View {
                             .stroke(.black.opacity(0.5), lineWidth: 1)
                     )
                     .overlay {
-                        if hardwired {
+                        // Bolt = electricity flows on its own: hardwired mains,
+                        // or a one-shot that fires next chat and trips.
+                        if hardwired || (armed && isOn) {
                             Image(systemName: "bolt.fill")
                                 .font(.system(size: 8, weight: .bold))
                                 .foregroundStyle(.black.opacity(0.5))
@@ -882,7 +884,6 @@ struct RockerSwitch: View {
 
     private var paddleColor: Color {
         if hardwired { return Theme.deadGray }
-        if !isOn { return Theme.offRed }
-        return steady ? Theme.liveGreen : Theme.safety
+        return isOn ? Theme.liveGreen : Theme.offRed
     }
 }
