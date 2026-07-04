@@ -533,6 +533,13 @@ struct BreakerRow: View {
                     .tracking(1)
                     .foregroundStyle(.white.opacity(0.35))
                     .lineLimit(1)
+                if !skill.isHardwired && skill.enabled {
+                    Text(skill.isArmed ? "CLAUDE WILL USE IT NEXT CHAT" : "USED WHEN CLAUDE SEES FIT")
+                        .font(.system(size: 7.5, weight: .heavy))
+                        .tracking(1)
+                        .foregroundStyle((skill.isArmed ? Theme.liveGreen : Theme.safety).opacity(0.85))
+                        .lineLimit(1)
+                }
             }
             .onTapGesture(perform: copy)
             .help("\(skill.invocation) — \(skill.description.isEmpty ? "no description" : skill.description)\n\nClick label to copy \(skill.invocation)")
@@ -574,7 +581,9 @@ struct BreakerRow: View {
     }
 
     private var dotColor: Color {
-        skill.enabled ? Theme.liveGreen : Theme.offRed.opacity(0.55)
+        guard skill.enabled else { return Theme.offRed.opacity(0.55) }
+        if skill.isHardwired { return Theme.liveGreen }
+        return skill.isArmed ? Theme.liveGreen : Theme.safety
     }
 }
 
@@ -594,7 +603,7 @@ struct PersonaRow: View {
                 hardwired: false,
                 steady: true,
                 helpOverride: fullyOn
-                    ? "ON — this persona's skills are steady on in every chat. Click to switch off."
+                    ? "ON (yellow) — Claude uses this persona's skills whenever they make sense. Click to switch off."
                     : "OFF — click to install anything missing and switch the whole persona on."
             ) {
                 fullyOn ? unplug() : energize()
@@ -700,7 +709,7 @@ struct PersonaBuilderSheet: View {
                     )
                     store.addPersona(persona)
                     store.energize(persona)
-                    store.message = "\(persona.name.capitalized) built and energized — \(persona.members.count) breakers steady ON."
+                    store.message = "\(persona.name.capitalized) built — \(persona.members.count) breakers on (yellow)."
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
@@ -877,13 +886,16 @@ struct RockerSwitch: View {
         .buttonStyle(.plain)
         .help(helpOverride ?? (hardwired
             ? "Built into Claude — always on"
-            : (steady ? "ON — available in every chat (persona). Click to switch off."
-                : (isOn ? "ARMED — fires once at the start of your next Cowork chat, then trips off. Click to disarm."
+            : (steady ? "ON (yellow) — Claude uses this skill whenever it makes sense. Click to switch off."
+                : (isOn ? "ARMED (green) — Claude will definitely use this at the start of your next chat, then the breaker trips off. Click to disarm."
                         : "OFF — click to arm for your next chat"))))
     }
 
+    /// Yellow: enabled — Claude reaches for it when it makes sense.
+    /// Green: armed — Claude will definitely use it next chat, then it trips.
     private var paddleColor: Color {
         if hardwired { return Theme.deadGray }
-        return isOn ? Theme.liveGreen : Theme.offRed
+        if !isOn { return Theme.offRed }
+        return steady ? Theme.safety : Theme.liveGreen
     }
 }

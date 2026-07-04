@@ -68,7 +68,7 @@ struct PersonasView: View {
                 .font(.system(size: 8, weight: .heavy, design: .rounded))
                 .tracking(1.5)
                 .foregroundStyle(Theme.safety.opacity(0.9))
-            Text("A persona is a bundle of skills that makes Claude act a certain way — a sparring partner, a marketer, an editor. Energize one and all of its breakers hold steady ON (green) for every chat. Unplug it any time.")
+            Text("A persona is a bundle of skills that makes Claude act a certain way — a sparring partner, a marketer, an editor. Flip one on and its breakers glow yellow — Claude uses those skills whenever they make sense, in every chat. Flip it off any time.")
                 .font(.system(size: 10))
                 .foregroundStyle(.white.opacity(0.6))
                 .fixedSize(horizontal: false, vertical: true)
@@ -114,7 +114,7 @@ struct PersonasView: View {
             store.energize(persona)
             store.message = skippedUnsourced > 0
                 ? "\(persona.name.capitalized) energized — \(skippedUnsourced) local skill(s) couldn't be reinstalled (no known source)."
-                : "\(persona.name.capitalized) energized — its breakers are steady ON (green) for every chat."
+                : "\(persona.name.capitalized) is ON — Claude will use its skills whenever they make sense."
         }
     }
 }
@@ -158,7 +158,7 @@ struct StarterRow: View {
                     .overlay(Capsule().stroke(.black.opacity(0.4), lineWidth: 1))
             }
             .buttonStyle(PressStyle())
-            .help("Install its skills and hold them steady ON")
+            .help("Install its skills and switch them on — Claude uses them whenever they fit")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
