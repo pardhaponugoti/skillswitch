@@ -47,6 +47,10 @@ The website lives in `docs/index.html` (GitHub Pages–ready).
 - `DiscoveryStore` — parses the skills.sh homepage leaderboard payload, filters to GitHub-installable sources with ≥50k installs, downloads via the GitHub trees API (`HEAD` ref, so any default branch works) into a staging dir, swaps it into Cowork's skills folder, then registers the manifest entry.
 - `PanelView` / `DiscoveryView` — the SwiftUI electrical panel.
 
+## The `env` convention
+
+Skills that need API keys can declare them in SKILL.md frontmatter — required keys, optional keys, and pick-one-of-N groups — so tools like SkillSwitch can render real setup UI instead of guessing. Spec: [SKILL-ENV.md](SKILL-ENV.md).
+
 ## License
 
 [MIT](LICENSE)
