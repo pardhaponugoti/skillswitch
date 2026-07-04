@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PanelView: View {
     enum Tab {
-        case breakers, add
+        case breakers, personas, add
     }
 
     @StateObject private var store = SkillStore()
@@ -52,6 +52,7 @@ struct PanelView: View {
     private var tabs: some View {
         HStack(spacing: 8) {
             PanelTab(title: "BREAKERS", icon: "switch.2", active: tab == .breakers) { tab = .breakers }
+            PanelTab(title: "PERSONAS", icon: "theatermasks.fill", active: tab == .personas) { tab = .personas }
             PanelTab(title: "ADD SKILLS", icon: "plus.circle.fill", active: tab == .add) { tab = .add }
         }
         .padding(.horizontal, 12)
@@ -63,6 +64,8 @@ struct PanelView: View {
             switch tab {
             case .breakers:
                 BreakerBoard(store: store, discovery: discovery) { tab = .add }
+            case .personas:
+                PersonasView(store: store, discovery: discovery)
             case .add:
                 DiscoveryView(store: discovery)
             }
@@ -173,7 +176,6 @@ struct BreakerBoard: View {
     var addSkills: () -> Void
 
     @State private var removalCandidate: Skill?
-    @State private var showPersonaBuilder = false
     @AppStorage("binExpanded") private var binExpanded = false
     @AppStorage("panelCommissioned") private var commissioned = false
 
@@ -206,11 +208,6 @@ struct BreakerBoard: View {
                         ForEach(store.orphans) { orphan in
                             UnwiredRow(part: orphan) { store.wireIn(orphan) }
                         }
-                    }
-
-                    if !store.personas.isEmpty || store.circuits.count >= 3 {
-                        personasSection
-                            .padding(.top, 8)
                     }
 
                     if !store.hardwired.isEmpty {
@@ -254,76 +251,6 @@ struct BreakerBoard: View {
         }
     }
 
-    @ViewBuilder
-    private var personasSection: some View {
-        VStack(spacing: 8) {
-            sectionHeader("PERSONAS", detail: store.personas.isEmpty ? "toolkits you flip on together" : "one flip · whole toolkit")
-
-            if store.personas.isEmpty {
-                VStack(alignment: .leading, spacing: 9) {
-                    Text("A persona is a set of skills you switch on together — marketer, researcher, sparring partner. Energize one and its breakers hold steady ON (green) for every chat.")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.6))
-                        .fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 8) {
-                        Button {
-                            store.addPersona(.packagedSparringPartner)
-                            energize(Persona.packagedSparringPartner)
-                        } label: { checklistButton("INSTALL SPARRING PARTNER") }
-                        .buttonStyle(PressStyle())
-                        .help("Grill-me, brainstorming, and writing-plans — installed and held steady ON")
-                        Button {
-                            showPersonaBuilder = true
-                        } label: {
-                            Text("BUILD YOUR OWN")
-                                .font(.system(size: 8.5, weight: .heavy, design: .rounded))
-                                .tracking(1)
-                                .foregroundStyle(.white.opacity(0.7))
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 4)
-                                .background(Capsule().fill(Color.white.opacity(0.12)))
-                                .overlay(Capsule().stroke(.black.opacity(0.4), lineWidth: 1))
-                        }
-                        .buttonStyle(PressStyle())
-                    }
-                }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.breaker.opacity(0.55)))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .stroke(.white.opacity(0.07), lineWidth: 1)
-                )
-            } else {
-                ForEach(store.personas) { persona in
-                    PersonaRow(
-                        persona: persona,
-                        state: store.personaState(persona),
-                        energize: { energize(persona) },
-                        unplug: { store.unplug(persona) }
-                    )
-                    .contextMenu {
-                        Button("Remove persona (keeps its skills)", role: .destructive) {
-                            store.removePersona(persona)
-                        }
-                    }
-                }
-                Button {
-                    showPersonaBuilder = true
-                } label: {
-                    Text("+ BUILD A PERSONA")
-                        .font(.system(size: 8.5, weight: .heavy, design: .rounded))
-                        .tracking(1)
-                        .foregroundStyle(.white.opacity(0.5))
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 2)
-            }
-        }
-        .sheet(isPresented: $showPersonaBuilder) {
-            PersonaBuilderSheet(store: store, discovery: discovery)
-        }
-    }
-
     private var findSkillsInstalled: Bool {
         store.circuits.contains { $0.skillId == "find-skills" }
     }
@@ -343,27 +270,6 @@ struct BreakerBoard: View {
 
     private var findSkillsArmed: Bool {
         store.circuits.first { $0.skillId == "find-skills" }?.isArmed == true
-    }
-
-    private func energize(_ persona: Persona) {
-        store.message = "Wiring \(persona.name.capitalized)…"
-        Task {
-            var skippedUnsourced = 0
-            for member in persona.members where !store.circuits.contains(where: { $0.skillId == member.skillId }) {
-                guard let source = member.source else {
-                    skippedUnsourced += 1
-                    continue
-                }
-                await discovery.install(DiscoverySkill(
-                    source: source, skillId: member.skillId, installs: 0, isOfficial: false
-                ))
-            }
-            store.scan()
-            store.energize(persona)
-            store.message = skippedUnsourced > 0
-                ? "\(persona.name.capitalized) energized — \(skippedUnsourced) local skill(s) couldn't be reinstalled (no known source)."
-                : "\(persona.name.capitalized) energized — its breakers are steady ON (green) for every chat."
-        }
     }
 
     private var commissioningCard: some View {

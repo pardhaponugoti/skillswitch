@@ -17,17 +17,20 @@ struct Persona: Identifiable, Hashable, Codable {
     var blurb: String
     var members: [Member]
 
-    /// The one packaged starter, offered from the empty state.
-    static let packagedSparringPartner = Persona(
-        id: UUID(uuidString: "5B32B1D6-9C1E-4E60-8A31-6A2D2D9A0001")!,
-        name: "SPARRING PARTNER",
-        blurb: "Relentless questions, structured brainstorms, real plans.",
-        members: [
-            Member(skillId: "grill-me", source: "mattpocock/skills"),
-            Member(skillId: "brainstorming", source: "obra/superpowers"),
-            Member(skillId: "writing-plans", source: "obra/superpowers"),
-        ]
-    )
+    /// Prebuilt bundles offered on the Personas tab.
+    static let starters: [Persona] = [
+        Persona(
+            id: UUID(uuidString: "5B32B1D6-9C1E-4E60-8A31-6A2D2D9A0001")!,
+            name: "SPARRING PARTNER",
+            blurb: "Claude pushes back: relentless questions, structured brainstorms, plans that survive contact.",
+            members: [
+                Member(skillId: "grill-me", source: "mattpocock/skills"),
+                Member(skillId: "brainstorming", source: "obra/superpowers"),
+                Member(skillId: "writing-plans", source: "obra/superpowers"),
+                Member(skillId: "executing-plans", source: "obra/superpowers"),
+            ]
+        ),
+    ]
 }
 
 /// Persistence for user personas (UserDefaults-backed JSON).
