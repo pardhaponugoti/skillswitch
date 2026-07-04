@@ -202,10 +202,21 @@ struct BreakerBoard: View {
                     if !commissioned {
                         commissioningCard
                     }
+                    sectionHeader("PERSONAS", detail: "skill zones · steady on")
+                    ForEach(Persona.curated) { persona in
+                        PersonaRow(
+                            persona: persona,
+                            state: store.personaState(persona),
+                            energize: { energize(persona) },
+                            unplug: { store.unplug(persona) }
+                        )
+                    }
+
                     if store.circuits.isEmpty && store.orphans.isEmpty {
                         miniEmptyCircuits
                     } else {
                         sectionHeader("CIRCUITS", detail: "flip to arm · fires once next chat")
+                            .padding(.top, 8)
                         ForEach(store.circuits) { skill in
                             BreakerRow(
                                 skill: skill,
@@ -260,8 +271,22 @@ struct BreakerBoard: View {
         }
     }
 
-    private var grillMeInstalled: Bool {
-        store.circuits.contains { $0.skillId == "grill-me" }
+    private var findSkillsInstalled: Bool {
+        store.circuits.contains { $0.skillId == "find-skills" }
+    }
+
+    private func energize(_ persona: Persona) {
+        store.message = "Wiring \(persona.name.capitalized)…"
+        Task {
+            for member in persona.members where !store.circuits.contains(where: { $0.skillId == member.skillId }) {
+                await discovery.install(DiscoverySkill(
+                    source: member.source, skillId: member.skillId, installs: 0, isOfficial: false
+                ))
+            }
+            store.scan()
+            store.energize(persona)
+            store.message = "\(persona.name.capitalized) energized — its breakers are steady ON (green) for every chat."
+        }
     }
 
     private var commissioningCard: some View {
@@ -287,19 +312,19 @@ struct BreakerBoard: View {
             }
 
             checklistRow(
-                number: "1", done: grillMeInstalled,
-                text: "Wire up grill-me — the interviewer that sharpens any plan."
+                number: "1", done: findSkillsInstalled,
+                text: "Wire up find-skills — the skill that finds you more skills."
             ) {
                 Button {
-                    store.message = "Installing grill-me…"
+                    store.message = "Installing find-skills…"
                     Task {
                         await discovery.install(DiscoverySkill(
-                            source: "mattpocock/skills", skillId: "grill-me",
+                            source: "vercel-labs/skills", skillId: "find-skills",
                             installs: 0, isOfficial: false
                         ))
-                        try? CoworkEnvironment.locate()?.disarm(skillId: "grill-me")
+                        try? CoworkEnvironment.locate()?.disarm(skillId: "find-skills")
                         store.scan()
-                        store.message = "grill-me is on the panel — leave it OFF for now."
+                        store.message = "find-skills is on the panel — leave it OFF for now."
                     }
                 } label: { checklistButton("INSTALL") }
                 .buttonStyle(PressStyle())
@@ -315,7 +340,7 @@ struct BreakerBoard: View {
 
             checklistRow(
                 number: "3", done: false,
-                text: "Flip grill-me's breaker, open a fresh Cowork chat, and start something ambitious. Get grilled."
+                text: "Flip find-skills's breaker, open a fresh Cowork chat, and ask for skills that fit your work."
             ) {
                 Button {
                     withAnimation { commissioned = true }
@@ -504,7 +529,7 @@ struct BreakerRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            RockerSwitch(isOn: skill.enabled, hardwired: skill.isHardwired, action: toggle)
+            RockerSwitch(isOn: skill.enabled, hardwired: skill.isHardwired, steady: skill.isSteadyOn, action: toggle)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(skill.name.uppercased())
@@ -564,6 +589,71 @@ struct BreakerRow: View {
     private var dotColor: Color {
         guard skill.enabled else { return Theme.offRed.opacity(0.55) }
         return skill.isArmed ? Theme.safety : Theme.liveGreen
+    }
+}
+
+/// A persona: a curated zone of skills wired in together and held steady ON.
+struct PersonaRow: View {
+    let persona: Persona
+    let state: (installed: Int, on: Int)
+    let energize: () -> Void
+    let unplug: () -> Void
+
+    private var fullyOn: Bool { state.on == persona.members.count }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(persona.name)
+                        .font(.system(size: 10.5, weight: .bold, design: .monospaced))
+                        .tracking(0.5)
+                        .foregroundStyle(.white.opacity(0.92))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2.5)
+                        .background(RoundedRectangle(cornerRadius: 3).fill(Theme.tapeBlack))
+                    Circle()
+                        .fill(fullyOn ? Theme.liveGreen : Theme.deadGray.opacity(0.6))
+                        .frame(width: 6, height: 6)
+                        .shadow(color: fullyOn ? Theme.liveGreen.opacity(0.9) : .clear, radius: 3)
+                }
+                Text(persona.blurb)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(persona.members.count) SKILLS · \(state.on) ON")
+                    .font(.system(size: 7.5, weight: .bold))
+                    .tracking(1)
+                    .foregroundStyle(.white.opacity(0.3))
+            }
+
+            Spacer(minLength: 8)
+
+            Button(action: fullyOn ? unplug : energize) {
+                Text(fullyOn ? "UNPLUG" : "ENERGIZE")
+                    .tracking(1)
+                    .font(.system(size: 9, weight: .heavy, design: .rounded))
+                    .foregroundStyle(fullyOn ? AnyShapeStyle(.white.opacity(0.7)) : AnyShapeStyle(Theme.tapeBlack))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(fullyOn ? AnyShapeStyle(Color.white.opacity(0.12)) : AnyShapeStyle(Theme.liveGreen)))
+                    .overlay(Capsule().stroke(.black.opacity(0.4), lineWidth: 1))
+            }
+            .buttonStyle(PressStyle())
+            .help(fullyOn
+                ? "Switch this persona's skills off"
+                : "Install anything missing and hold this persona's skills steadily ON (green) for every chat")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Theme.breaker)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(fullyOn ? Theme.liveGreen.opacity(0.4) : .white.opacity(0.07), lineWidth: 1)
+        )
     }
 }
 
@@ -675,6 +765,7 @@ struct BinRow: View {
 struct RockerSwitch: View {
     let isOn: Bool
     let hardwired: Bool
+    var steady: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -727,12 +818,14 @@ struct RockerSwitch: View {
         .buttonStyle(.plain)
         .help(hardwired
             ? "Built into Claude — always on"
-            : (isOn ? "ARMED — fires once at the start of your next Cowork chat, then trips off. Click to disarm."
-                    : "OFF — click to arm for your next chat"))
+            : (steady ? "ON — available in every chat (persona). Click to switch off."
+                : (isOn ? "ARMED — fires once at the start of your next Cowork chat, then trips off. Click to disarm."
+                        : "OFF — click to arm for your next chat")))
     }
 
     private var paddleColor: Color {
         if hardwired { return Theme.deadGray }
-        return isOn ? Theme.safety : Theme.offRed
+        if !isOn { return Theme.offRed }
+        return steady ? Theme.liveGreen : Theme.safety
     }
 }

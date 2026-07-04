@@ -15,13 +15,15 @@ enum SkillScanner {
             guard let skillId = entry["skillId"] as? String else { return nil }
             let creator = entry["creatorType"] as? String ?? "user"
             let updatedAt = (entry["updatedAt"] as? String).flatMap { formatter.date(from: $0) }
+            let rawDescription = entry["description"] as? String ?? ""
             return Skill(
                 skillId: skillId,
                 name: entry["name"] as? String ?? skillId,
-                description: CoworkEnvironment.strippedDescription(entry["description"] as? String ?? ""),
+                description: CoworkEnvironment.strippedDescription(rawDescription),
                 directory: env.skillsDir.appendingPathComponent(skillId, isDirectory: true),
                 source: creator == "user" ? .user : .builtin(creator),
                 enabled: entry["enabled"] as? Bool ?? true,
+                armed: rawDescription.hasPrefix(CoworkEnvironment.armPrefix),
                 armedAt: updatedAt
             )
         }

@@ -136,13 +136,49 @@ final class SkillStore: ObservableObject {
             try SkillToggler.setEnabled(skill, !skill.enabled)
             NSSound(named: "Pop")?.play()
             scan()
-            message = skill.enabled
-                ? "\(skill.displayName) disarmed."
-                : "\(skill.displayName) is ARMED — it fires at the start of your next Cowork chat, then trips off."
+            if skill.enabled {
+                message = skill.armed
+                    ? "\(skill.displayName) disarmed."
+                    : "\(skill.displayName) switched off."
+            } else {
+                message = "\(skill.displayName) is ARMED — it fires at the start of your next Cowork chat, then trips off."
+            }
         } catch {
             scan()
             message = error.localizedDescription
         }
+    }
+
+    // MARK: - Personas
+
+    /// How much of a persona is currently wired and steadily on.
+    func personaState(_ persona: Persona) -> (installed: Int, on: Int) {
+        let byId = Dictionary(circuits.map { ($0.skillId, $0) }, uniquingKeysWith: { a, _ in a })
+        let installed = persona.members.filter { byId[$0.skillId] != nil }.count
+        let on = persona.members.filter { byId[$0.skillId]?.isSteadyOn == true }.count
+        return (installed, on)
+    }
+
+    /// Switch every member of a persona steadily ON (green). Members not yet
+    /// installed are skipped here — the caller installs them first.
+    func energize(_ persona: Persona) {
+        guard let env = CoworkEnvironment.locate() else { return }
+        for member in persona.members where circuits.contains(where: { $0.skillId == member.skillId }) {
+            try? env.setSteadyOn(skillId: member.skillId)
+        }
+        NSSound(named: "Pop")?.play()
+        scan()
+    }
+
+    /// Switch every member of a persona OFF.
+    func unplug(_ persona: Persona) {
+        guard let env = CoworkEnvironment.locate() else { return }
+        for member in persona.members where circuits.contains(where: { $0.skillId == member.skillId }) {
+            try? env.disarm(skillId: member.skillId)
+        }
+        NSSound(named: "Pop")?.play()
+        scan()
+        message = "\(persona.name.capitalized) unplugged — its breakers are off."
     }
 
     // MARK: - Tripping

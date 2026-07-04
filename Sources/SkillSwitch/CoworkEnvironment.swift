@@ -132,6 +132,16 @@ struct CoworkEnvironment {
         }
     }
 
+    /// Switch a user skill steadily ON (persona-style): enabled with its
+    /// original description — available to Claude, but never force-fired and
+    /// never tripped.
+    func setSteadyOn(skillId: String) throws {
+        try update(skillId: skillId) { entry in
+            entry["description"] = Self.strippedDescription(entry["description"] as? String ?? "")
+            entry["enabled"] = true
+        }
+    }
+
     /// Switch a user skill OFF (manual flip or a tripped breaker): disabled,
     /// original description restored.
     func disarm(skillId: String) throws {
