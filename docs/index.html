@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SkillSwitch — a breaker panel for your Claude</title>
-<meta name="description" content="Claude skills, for people who don't speak terminal. SkillSwitch is a macOS app that puts every Claude Cowork skill on a panel of switches. Arm one, and it fires in your next chat.">
+<meta name="description" content="Claude skills, for people who don't speak terminal. A free Mac app that puts every Claude Cowork skill on a breaker panel. Flip one skill — or a whole persona.">
 <meta property="og:title" content="SkillSwitch — a breaker panel for your Claude">
-<meta property="og:description" content="Claude skills, for people who don't speak terminal. Arm a switch, get a superpower.">
+<meta property="og:description" content="Claude skills, for people who don't speak terminal. Flip a switch, get a superpower. Flip a persona, get a toolkit.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://skillswitch.cc">
 <meta property="og:image" content="https://skillswitch.cc/og/card.png">
@@ -425,7 +425,8 @@
     <a href="#how">HOW IT WORKS</a>
     <a href="#install">INSTALL</a>
     <a href="#faq">FAQ</a>
-    <a class="gh" href="https://github.com/pardhaponugoti/skillswitch">GITHUB</a>
+    <a href="https://github.com/pardhaponugoti/skillswitch">GITHUB</a>
+    <a class="gh" href="https://github.com/pardhaponugoti/skillswitch/releases/latest/download/SkillSwitch.dmg">DOWNLOAD</a>
   </div>
 </nav>
 
@@ -439,10 +440,12 @@
       people never touch them. <strong>SkillSwitch puts every skill on a panel of
       switches.</strong> Arm one, and it fires at the start of your next chat —
       then the breaker trips off, ready for next time.
-      If you can reset a breaker, you're qualified.
+      If you can reset a breaker, you're qualified. And if you don't know what
+      a skill is yet: flip a <strong>persona</strong> — marketer, editor, sparring
+      partner — and a whole toolkit switches on at once.
     </p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="#install"><svg class="bolt-svg" width="12" height="14" viewBox="0 0 14 16" fill="currentColor"><path d="M8 0 1 9.5h4.4L4.6 16 13 6H8.2z"/></svg>GET SKILLSWITCH</a>
+      <a class="btn btn-primary" href="https://github.com/pardhaponugoti/skillswitch/releases/latest/download/SkillSwitch.dmg"><svg class="bolt-svg" width="12" height="14" viewBox="0 0 14 16" fill="currentColor"><path d="M8 0 1 9.5h4.4L4.6 16 13 6H8.2z"/></svg>DOWNLOAD FREE</a>
       <a class="btn btn-ghost" href="#how">HOW IT WORKS</a>
     </div>
     <p class="fine">MACOS 14+ · FREE · OPEN SOURCE · MADE FOR CLAUDE COWORK</p>
@@ -460,39 +463,53 @@
       </div>
 
       <div class="interior">
+        <div class="sect"><span class="t">PERSONAS</span><span class="d">ONE FLIP · WHOLE TOOLKIT</span></div>
+
+        <div class="breaker persona-row" id="personaRow">
+          <button class="rocker" id="personaRocker" aria-label="Toggle Sparring Partner persona">
+            <span class="oi"><span class="o">O</span><span class="i">I</span></span>
+            <span class="paddle"></span>
+          </button>
+          <div class="brk-labels">
+            <span class="tape-label">SPARRING PARTNER</span>
+            <span class="src-label">Grills ideas · brainstorms · writes plans</span>
+          </div>
+          <span class="led"></span>
+        </div>
+
         <div class="sect"><span class="t">CIRCUITS</span><span class="d">FLIP TO ARM · FIRES ONCE</span></div>
 
-        <div class="breaker live" data-skill="deep-research">
-          <button class="rocker on" aria-label="Toggle deep-research">
+        <div class="breaker live" data-skill="grill-me">
+          <button class="rocker on" aria-label="Toggle grill-me">
             <span class="oi"><span class="o">O</span><span class="i">I</span></span>
             <span class="paddle"></span>
           </button>
           <div class="brk-labels">
-            <span class="tape-label">DEEP-RESEARCH</span>
+            <span class="tape-label">GRILL-ME</span>
             <span class="src-label">Personal · one-shot</span>
           </div>
           <span class="led"></span>
         </div>
 
-        <div class="breaker live" data-skill="pptx">
-          <button class="rocker on" aria-label="Toggle pptx">
+        <div class="breaker live" data-skill="brainstorming">
+          <button class="rocker on" aria-label="Toggle brainstorming">
             <span class="oi"><span class="o">O</span><span class="i">I</span></span>
             <span class="paddle"></span>
           </button>
           <div class="brk-labels">
-            <span class="tape-label">PPTX</span>
+            <span class="tape-label">BRAINSTORMING</span>
             <span class="src-label">Personal · one-shot</span>
           </div>
           <span class="led"></span>
         </div>
 
-        <div class="breaker live" data-skill="pdf">
-          <button class="rocker on" aria-label="Toggle pdf">
+        <div class="breaker live" data-skill="writing-plans">
+          <button class="rocker on" aria-label="Toggle writing-plans">
             <span class="oi"><span class="o">O</span><span class="i">I</span></span>
             <span class="paddle"></span>
           </button>
           <div class="brk-labels">
-            <span class="tape-label">PDF</span>
+            <span class="tape-label">WRITING-PLANS</span>
             <span class="src-label">Personal · one-shot</span>
           </div>
           <span class="led"></span>
@@ -569,6 +586,18 @@
     </div>
     <div class="card">
       <span class="num">02</span>
+      <div class="glyph"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--safety)" stroke-width="1.8"><rect x="2" y="3.5" width="20" height="7.5" rx="3.75"/><rect x="13.5" y="5.5" width="6.5" height="3.5" rx="1.75" fill="var(--safety)" stroke="none"/><rect x="2" y="13" width="20" height="7.5" rx="3.75"/><rect x="13.5" y="15" width="6.5" height="3.5" rx="1.75" fill="var(--safety)" stroke="none"/></svg></div>
+      <h3>PERSONAS</h3>
+      <p>
+        New to all of this? Start here. A persona is a bundle of skills that makes
+        Claude act a certain way. Flip <strong>MARKETER</strong> and Claude thinks in
+        positioning, copy, and SEO. Flip <strong>SPARRING PARTNER</strong> and it
+        grills your ideas and writes plans that survive contact. Six ship built in —
+        or build your own from any skills on your panel.
+      </p>
+    </div>
+    <div class="card">
+      <span class="num">03</span>
       <div class="glyph"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--safety)" stroke-width="1.8" stroke-linecap="round"><path d="M8.5 2v5M15.5 2v5"/><path d="M6 7h12v4.5a6 6 0 0 1-12 0z" fill="var(--safety)" fill-opacity=".18"/><path d="M12 17.5V22"/></svg></div>
       <h3>ADD SKILLS</h3>
       <p>
@@ -576,16 +605,6 @@
         with every skill above 50k installs — deduped, sorted by popularity, searchable.
         One click pulls the skill from GitHub straight into Claude's skill list,
         armed and ready to fire in your next chat.
-      </p>
-    </div>
-    <div class="card">
-      <span class="num">03</span>
-      <div class="glyph"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--safety)" stroke-width="1.8" stroke-linejoin="round"><path d="M3 3h8.5L21.5 13 13 21.5 3 11.5z"/><circle cx="8" cy="8" r="1.7" fill="var(--safety)" stroke="none"/></svg></div>
-      <h3>LABELS</h3>
-      <p>
-        Click any skill's label to copy its <code>/name</code> invocation. Paste it into
-        Cowork — or just ask for the skill in plain English. Claude picks up whatever's
-        armed in your next conversation.
       </p>
     </div>
   </div>
@@ -645,6 +664,15 @@
       </div>
     </details>
     <details>
+      <summary>And what's a persona?</summary>
+      <div class="a">
+        The friendlier front door. A persona bundles several skills into one switch
+        that makes Claude act a certain way — marketer, editor, sparring partner.
+        Energize one and everything in it stays on (green) for all your chats until
+        you flip it off. You don't need to know what a skill is to use one.
+      </div>
+    </details>
+    <details>
       <summary>Do I need to use the terminal to use skills?</summary>
       <div class="a">
         No. Download, drag to Applications, done — and from then on, flipping breakers,
@@ -697,6 +725,16 @@
   </div>
 </section>
 
+<section id="get" style="text-align:center;">
+  <span class="sect-tape">LAST STEP</span>
+  <h2 class="sect-title">Give your Claude its switches.</h2>
+  <p class="sect-sub" style="margin-left:auto;margin-right:auto;">Twenty seconds from click to flipped breaker.</p>
+  <div class="cta-row" style="justify-content:center;">
+    <a class="btn btn-primary" href="https://github.com/pardhaponugoti/skillswitch/releases/latest/download/SkillSwitch.dmg"><svg class="bolt-svg" width="12" height="14" viewBox="0 0 14 16" fill="currentColor"><path d="M8 0 1 9.5h4.4L4.6 16 13 6H8.2z"/></svg>DOWNLOAD SKILLSWITCH — FREE</a>
+  </div>
+  <p class="fine" style="margin-top:14px;">MACOS 14+ · OPEN SOURCE · 1 MB · NOTHING PHONES HOME</p>
+</section>
+
 <footer>
   <div class="hazard hazard-edge"></div>
   <div class="foot-inner">
@@ -733,11 +771,29 @@
   }
 
   function updateCount() {
-    var live = document.querySelectorAll(".breaker.live").length;
+    var live = document.querySelectorAll(".breaker.live:not(.persona-row)").length;
     countEl.textContent = live + " LIVE";
   }
 
-  document.querySelectorAll(".rocker").forEach(function (rocker) {
+  var personaRocker = document.getElementById("personaRocker");
+  var personaMembers = ["grill-me", "brainstorming", "writing-plans"];
+  personaRocker.addEventListener("click", function () {
+    var on = personaRocker.classList.toggle("on");
+    document.getElementById("personaRow").classList.toggle("live", on);
+    personaMembers.forEach(function (id) {
+      var breaker = document.querySelector('.breaker[data-skill="' + id + '"]');
+      if (!breaker) return;
+      breaker.classList.toggle("live", on);
+      breaker.querySelector(".rocker").classList.toggle("on", on);
+    });
+    click(on ? 220 : 140);
+    statusEl.textContent = on
+      ? "Sparring Partner energized — 3 skills steady on."
+      : "Sparring Partner unplugged.";
+    updateCount();
+  });
+
+  document.querySelectorAll(".rocker:not(#personaRocker)").forEach(function (rocker) {
     rocker.addEventListener("click", function () {
       var breaker = rocker.closest(".breaker");
       var name = breaker.getAttribute("data-skill");
