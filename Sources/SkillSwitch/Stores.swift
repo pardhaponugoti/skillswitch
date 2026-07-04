@@ -12,9 +12,49 @@ final class SkillStore: ObservableObject {
     private var tripTimer: Timer?
     private var tripScanner: TripScanner?
 
-    var circuits: [Skill] { skills.filter { !$0.isHardwired } }
+    /// The bundled diagnostic rides the panel's TEST button, not a breaker row.
+    static let testerId = "circuit-tester"
+
+    var circuits: [Skill] { skills.filter { !$0.isHardwired && $0.skillId != Self.testerId } }
     var hardwired: [Skill] { skills.filter { $0.isHardwired } }
-    var liveCount: Int { skills.filter { $0.enabled }.count }
+    var tester: Skill? { skills.first { $0.skillId == Self.testerId } }
+    var liveCount: Int { skills.filter { $0.enabled && $0.skillId != Self.testerId }.count }
+
+    /// Quietly wire in the bundled circuit-tester (OFF) the first time we see
+    /// a healthy Cowork install without one.
+    func ensureTesterInstalled() {
+        guard coworkFound, tester == nil, let env = CoworkEnvironment.locate(),
+              let bundled = Bundle.main.resourceURL?.appendingPathComponent("skills/circuit-tester", isDirectory: true),
+              FileManager.default.fileExists(atPath: bundled.appendingPathComponent("SKILL.md").path) else { return }
+        try? env.importFolder(at: bundled, skillId: Self.testerId)
+        scan()
+    }
+
+    /// The panel's TEST button: arm the diagnostic; it runs in the next
+    /// Cowork chat, reports, and trips off.
+    func pressTest() {
+        guard let env = CoworkEnvironment.locate() else {
+            message = CoworkError.notFound.localizedDescription
+            return
+        }
+        do {
+            if tester == nil {
+                guard let bundled = Bundle.main.resourceURL?.appendingPathComponent("skills/circuit-tester", isDirectory: true),
+                      FileManager.default.fileExists(atPath: bundled.appendingPathComponent("SKILL.md").path) else {
+                    message = "The bundled circuit tester is missing from this build."
+                    return
+                }
+                try env.importFolder(at: bundled, skillId: Self.testerId)
+            }
+            try env.arm(skillId: Self.testerId)
+            NSSound(named: "Pop")?.play()
+            scan()
+            message = "TEST armed — open a Cowork chat and the tester runs, then trips off."
+        } catch {
+            scan()
+            message = error.localizedDescription
+        }
+    }
 
     func scan() {
         if let found = SkillScanner.scan() {
@@ -108,10 +148,11 @@ final class SkillStore: ObservableObject {
     // MARK: - Tripping
 
     /// Armed circuits are one-shots: poll Cowork's session logs and trip the
-    /// breaker the moment the skill actually fires in a chat.
+    /// breaker the moment the skill actually fires in a chat. Includes the
+    /// TEST-button diagnostic, which trips the same way.
     private var armedCircuits: [String: Date] {
         Dictionary(
-            circuits.filter(\.isArmed).map { ($0.skillId, $0.armedAt ?? Date()) },
+            skills.filter { !$0.isHardwired && $0.isArmed }.map { ($0.skillId, $0.armedAt ?? Date()) },
             uniquingKeysWith: { first, _ in first }
         )
     }

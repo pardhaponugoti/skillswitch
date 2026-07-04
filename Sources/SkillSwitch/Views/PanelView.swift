@@ -37,6 +37,7 @@ struct PanelView: View {
         .frame(minHeight: 660, idealHeight: 780)
         .onAppear {
             store.scan()
+            store.ensureTesterInstalled()
             discovery.onInstall = { [weak store] name in
                 store?.scan()
                 store?.message = "\(name) installed and ARMED — it fires in your next Cowork chat."
@@ -91,6 +92,20 @@ struct PanelView: View {
                 .foregroundStyle(Theme.inkDark.opacity(0.65))
                 .lineLimit(2)
             Spacer(minLength: 6)
+            Button {
+                store.pressTest()
+            } label: {
+                Text("TEST")
+                    .font(.system(size: 8.5, weight: .heavy, design: .rounded))
+                    .tracking(1.5)
+                    .foregroundStyle(store.tester?.isArmed == true ? AnyShapeStyle(Theme.tapeBlack) : AnyShapeStyle(Theme.inkDark.opacity(0.7)))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3.5)
+                    .background(Capsule().fill(store.tester?.isArmed == true ? AnyShapeStyle(Theme.safety) : AnyShapeStyle(Color.black.opacity(0.08))))
+                    .overlay(Capsule().stroke(.black.opacity(0.3), lineWidth: 1))
+            }
+            .buttonStyle(PressStyle())
+            .help("Arm the circuit tester — it verifies your setup at the start of your next Cowork chat, then trips off")
             Button {
                 store.scan()
                 discovery.refreshInstalled()
@@ -174,6 +189,7 @@ struct BreakerBoard: View {
 
     @State private var removalCandidate: Skill?
     @AppStorage("binExpanded") private var binExpanded = false
+    @AppStorage("panelCommissioned") private var commissioned = false
 
     var body: some View {
         if !store.coworkFound {
@@ -183,6 +199,9 @@ struct BreakerBoard: View {
         } else {
             ScrollView {
                 VStack(spacing: 8) {
+                    if !commissioned {
+                        commissioningCard
+                    }
                     if store.circuits.isEmpty && store.orphans.isEmpty {
                         miniEmptyCircuits
                     } else {
@@ -239,6 +258,104 @@ struct BreakerBoard: View {
                 Text("Its breaker disappears from the panel and the skill folder is moved to the Trash — drag it back out if you change your mind.")
             }
         }
+    }
+
+    private var grillMeInstalled: Bool {
+        store.circuits.contains { $0.skillId == "grill-me" }
+    }
+
+    private var commissioningCard: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                Text("COMMISSIONING CHECKLIST")
+                    .font(.system(size: 9, weight: .heavy, design: .rounded))
+                    .tracking(2)
+                    .foregroundStyle(Theme.tapeBlack)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(RoundedRectangle(cornerRadius: 3).fill(Theme.safety))
+                Spacer()
+                Button {
+                    withAnimation { commissioned = true }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.4))
+                }
+                .buttonStyle(.plain)
+                .help("Dismiss")
+            }
+
+            checklistRow(
+                number: "1", done: grillMeInstalled,
+                text: "Wire up grill-me — the interviewer that sharpens any plan."
+            ) {
+                Button {
+                    store.message = "Installing grill-me…"
+                    Task {
+                        await discovery.install(DiscoverySkill(
+                            source: "mattpocock/skills", skillId: "grill-me",
+                            installs: 0, isOfficial: false
+                        ))
+                        try? CoworkEnvironment.locate()?.disarm(skillId: "grill-me")
+                        store.scan()
+                        store.message = "grill-me is on the panel — leave it OFF for now."
+                    }
+                } label: { checklistButton("INSTALL") }
+                .buttonStyle(PressStyle())
+            }
+
+            checklistRow(
+                number: "2", done: store.tester?.isArmed == true,
+                text: "Press TEST, then open a Cowork chat and say hi. The tester checks your wiring and trips off."
+            ) {
+                Button { store.pressTest() } label: { checklistButton("TEST") }
+                    .buttonStyle(PressStyle())
+            }
+
+            checklistRow(
+                number: "3", done: false,
+                text: "Flip grill-me's breaker, open a fresh Cowork chat, and start something ambitious. Get grilled."
+            ) {
+                Button {
+                    withAnimation { commissioned = true }
+                } label: { checklistButton("DONE") }
+                .buttonStyle(PressStyle())
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.breaker))
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(Theme.safety.opacity(0.55), lineWidth: 1)
+        )
+    }
+
+    private func checklistRow(number: String, done: Bool, text: String, @ViewBuilder action: () -> some View) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            Text(done ? "✓" : number)
+                .font(.system(size: 9, weight: .black, design: .rounded))
+                .foregroundStyle(done ? Theme.liveGreen : Theme.safety)
+                .frame(width: 14, height: 14)
+                .background(Circle().fill(.black.opacity(0.4)))
+            Text(text)
+                .font(.system(size: 10))
+                .foregroundStyle(.white.opacity(done ? 0.45 : 0.8))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 4)
+            if !done { action() }
+        }
+    }
+
+    private func checklistButton(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 8.5, weight: .heavy, design: .rounded))
+            .tracking(1)
+            .foregroundStyle(Theme.tapeBlack)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(Theme.safety))
+            .overlay(Capsule().stroke(.black.opacity(0.4), lineWidth: 1))
     }
 
     private func updateSkill(_ skill: Skill) {
