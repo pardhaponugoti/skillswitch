@@ -89,12 +89,12 @@ draw("SKILLSWITCH", at: NSPoint(x: tape.minX + 38, y: tape.minY + 22),
      font: roundedFont(64, .black), color: .white, kern: 10)
 
 // Tagline + mechanism line
-draw("A BREAKER PANEL FOR YOUR CLAUDE", at: NSPoint(x: 444, y: 310),
-     font: roundedFont(30, .heavy), color: safety, kern: 3)
-draw("Arm a skill. It fires in your next chat.", at: NSPoint(x: 444, y: 240),
-     font: roundedFont(28, .semibold), color: color(1, 1, 1, 0.75))
-draw("Then the breaker trips off.", at: NSPoint(x: 444, y: 196),
-     font: roundedFont(28, .semibold), color: color(1, 1, 1, 0.75))
+draw("USE AI SKILLS LIKE A PRO", at: NSPoint(x: 444, y: 310),
+     font: roundedFont(34, .heavy), color: safety, kern: 3)
+draw("Without being an engineer.", at: NSPoint(x: 444, y: 240),
+     font: roundedFont(28, .semibold), color: color(1, 1, 1, 0.8))
+draw("Flip a switch — Claude does the rest.", at: NSPoint(x: 444, y: 196),
+     font: roundedFont(28, .semibold), color: color(1, 1, 1, 0.65))
 
 // Footer line
 draw("SKILLSWITCH.CC  ·  FREE  ·  OPEN SOURCE  ·  MACOS", at: NSPoint(x: 444, y: 92),
