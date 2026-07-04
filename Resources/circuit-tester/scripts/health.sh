@@ -15,13 +15,10 @@ echo "-- skill dir --"
 echo "path: $SKILLDIR"
 touch "$SKILLDIR/.write-test" 2>/dev/null && { echo "writable: yes"; rm -f "$SKILLDIR/.write-test"; } || echo "writable: no"
 ls -a "$SKILLDIR" 2>/dev/null | tr '\n' ' '; echo
-echo "-- env names (values masked) --"
-env | sort | while IFS='=' read -r k rest; do
-  case "$k" in
-    *KEY*|*TOKEN*|*SECRET*|*PASSWORD*|*CREDENTIAL*|*AUTH*) echo "$k=<masked-set>";;
-    *) echo "$k=$rest";;
-  esac
-done
+# Names only — users paste these reports, and value-masking by pattern
+# would still leak things like DATABASE_URL.
+echo "-- env var names --"
+env | cut -d= -f1 | sort
 echo "-- write tests --"
 touch "${TMPDIR:-/tmp}/skillswitch-health" 2>/dev/null && echo "tmp: OK" || echo "tmp: FAILED"
 echo "-- tools --"
