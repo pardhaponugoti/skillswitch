@@ -412,6 +412,11 @@
     .cards { grid-template-columns: 1fr; }
     .install-grid { grid-template-columns: 1fr; gap: 36px; }
     .nav-links a:not(.gh) { display: none; }
+    /* grid items default min-width:auto — the panel's nowrap spec line was
+       inflating the whole column past the viewport on phones */
+    .hero > *, .install-grid > * { min-width: 0; }
+    .face-spec { white-space: normal; }
+    .panel { max-width: 100%; }
   }
 </style>
 </head>
