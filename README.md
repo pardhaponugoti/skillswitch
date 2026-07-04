@@ -30,6 +30,8 @@ swift build          # compile
 swift run            # run from the CLI
 ./build-app.sh       # assemble build/SkillSwitch.app (regenerates Assets/AppIcon.icns if missing)
 ./tools/make-icns.sh # redraw the app icon (tools/make-icon.swift is the source of truth)
+./tools/make-owner-seed.sh   # refresh the org/user seed for the AUTHOR filter (needs gh)
+swift tools/make-og-image.swift docs/og/card.png   # redraw the social share card
 ./tools/make-dmg.sh  # package build/SkillSwitch.dmg
 ./tools/release.sh   # sign + notarize + DMG (needs a Developer ID certificate)
 ```

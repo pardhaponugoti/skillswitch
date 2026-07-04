@@ -7,7 +7,12 @@ struct DiscoveryView: View {
     var body: some View {
         VStack(spacing: 0) {
             searchField
-                .padding(10)
+                .padding(.horizontal, 10)
+                .padding(.top, 10)
+                .padding(.bottom, 7)
+            authorChips
+                .padding(.horizontal, 10)
+                .padding(.bottom, 9)
 
             if store.isLoading && store.skills.isEmpty {
                 VStack(spacing: 10) {
@@ -95,6 +100,19 @@ struct DiscoveryView: View {
         }
     }
 
+    private var authorChips: some View {
+        HStack(spacing: 6) {
+            Text("AUTHOR")
+                .font(.system(size: 8, weight: .heavy, design: .rounded))
+                .tracking(1.5)
+                .foregroundStyle(.white.opacity(0.35))
+            ShelfChip(title: "ALL", active: store.shelf == .all) { store.shelf = .all }
+            ShelfChip(title: "USER", active: store.shelf == .user) { store.shelf = .user }
+            ShelfChip(title: "ORG · \(store.orgCount)", active: store.shelf == .org) { store.shelf = .org }
+            Spacer(minLength: 0)
+        }
+    }
+
     private var searchField: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
@@ -125,6 +143,31 @@ struct DiscoveryView: View {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(.white.opacity(0.1), lineWidth: 1)
         )
+    }
+}
+
+struct ShelfChip: View {
+    let title: String
+    let active: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 8.5, weight: .heavy, design: .rounded))
+                .tracking(1)
+                .foregroundStyle(active ? AnyShapeStyle(Theme.tapeBlack) : AnyShapeStyle(.white.opacity(0.6)))
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4.5)
+                .background(
+                    Capsule().fill(active ? AnyShapeStyle(Theme.safety) : AnyShapeStyle(Color.white.opacity(0.08)))
+                )
+                .overlay(Capsule().stroke(.black.opacity(0.35), lineWidth: 1))
+        }
+        .buttonStyle(PressStyle())
+        .help(title.hasPrefix("ORG")
+            ? "Skills published by companies and organizations"
+            : (title == "USER" ? "Skills published by individual people" : "Everything"))
     }
 }
 

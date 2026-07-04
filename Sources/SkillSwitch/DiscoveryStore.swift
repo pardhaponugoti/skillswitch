@@ -7,6 +7,7 @@ struct DiscoverySkill: Identifiable, Hashable {
     let isOfficial: Bool
 
     var id: String { "\(source)/\(skillId)" }
+    var owner: String { String(source.split(separator: "/").first ?? "") }
 
     var displayName: String {
         skillId.split(separator: "-").map { $0.capitalized }.joined(separator: " ")
@@ -45,6 +46,13 @@ enum DiscoveryError: LocalizedError {
     }
 }
 
+/// Shelf filter by who published the skill. `org` = the GitHub owner is an
+/// organization account or skills.sh marks the entry vendor-official;
+/// unresolved owners count as `user` so nothing hides on a guess.
+enum AuthorShelf: String {
+    case all, user, org
+}
+
 @MainActor
 final class DiscoveryStore: ObservableObject {
     /// Only surface widely-used skills to keep the shelf trustworthy.
@@ -58,6 +66,16 @@ final class DiscoveryStore: ObservableObject {
     @Published private(set) var fetchingDescriptions: Set<String> = []
     @Published var errorMessage: String?
     @Published var query = ""
+    @Published var shelf: AuthorShelf {
+        didSet { UserDefaults.standard.set(shelf.rawValue, forKey: "authorShelf") }
+    }
+
+    private let ownerDirectory = OwnerDirectory()
+
+    init() {
+        shelf = AuthorShelf(rawValue: UserDefaults.standard.string(forKey: "authorShelf") ?? "") ?? .user
+        ownerDirectory.onChange = { [weak self] in self?.objectWillChange.send() }
+    }
 
     /// Called after a successful install so the panel can rescan.
     var onInstall: ((String) -> Void)?
@@ -87,13 +105,27 @@ final class DiscoveryStore: ObservableObject {
         let tree: [Item]
     }
 
+    func isOrg(_ skill: DiscoverySkill) -> Bool {
+        skill.isOfficial || ownerDirectory.kind(of: skill.owner) == .organization
+    }
+
+    var orgCount: Int { skills.filter(isOrg).count }
+
     var filtered: [DiscoverySkill] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return skills }
-        return skills.filter {
-            $0.skillId.lowercased().contains(q)
-                || $0.displayName.lowercased().contains(q)
-                || $0.source.lowercased().contains(q)
+        // A live search overrides the shelf — searching "azure" from the USER
+        // shelf and finding nothing would read as a bug.
+        guard q.isEmpty else {
+            return skills.filter {
+                $0.skillId.lowercased().contains(q)
+                    || $0.displayName.lowercased().contains(q)
+                    || $0.source.lowercased().contains(q)
+            }
+        }
+        switch shelf {
+        case .all: return skills
+        case .user: return skills.filter { !isOrg($0) }
+        case .org: return skills.filter(isOrg)
         }
     }
 
@@ -119,6 +151,8 @@ final class DiscoveryStore: ObservableObject {
                   let html = String(data: data, encoding: .utf8) else { throw DiscoveryError.badResponse }
             skills = Self.parseLeaderboard(html)
             if skills.isEmpty { errorMessage = "skills.sh returned no skills — its page format may have changed." }
+            let owners = skills.map(\.owner)
+            Task { await ownerDirectory.resolve(owners) }
         } catch {
             errorMessage = "Couldn't reach skills.sh: \(error.localizedDescription)"
         }
