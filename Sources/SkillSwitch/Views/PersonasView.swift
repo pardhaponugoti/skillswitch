@@ -68,7 +68,7 @@ struct PersonasView: View {
                 .font(.system(size: 8, weight: .heavy, design: .rounded))
                 .tracking(1.5)
                 .foregroundStyle(Theme.safety.opacity(0.9))
-            Text("A persona is a bundle of skills that makes Claude act a certain way — a sparring partner, a marketer, an editor. Flip one on and its breakers glow yellow — Claude uses those skills whenever they make sense, in every chat. Flip it off any time.")
+            Text("A persona is a bundle of skills that makes Claude act a certain way — a sparring partner, a marketer, an editor. Flip one on and Claude uses those skills whenever they make sense, in every chat. Flip it off any time.")
                 .font(.system(size: 10))
                 .foregroundStyle(.white.opacity(0.6))
                 .fixedSize(horizontal: false, vertical: true)

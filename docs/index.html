@@ -233,7 +233,6 @@
   .rocker.on .paddle { transform: translateX(15px); background-color: var(--live); }
   .rocker.hardwired { cursor: not-allowed; }
   .rocker.hardwired .paddle { background-color: var(--dead); }
-  .persona-row .rocker.on .paddle { background-color: var(--safety); }
 
   .brk-labels { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .tape-label {
@@ -580,10 +579,10 @@
         Every skill in Claude Cowork's own list gets a rocker switch. Flipping one ON
         <strong>arms</strong> it — your next chat invokes the skill right at the start,
         no typing required. The moment it fires, the breaker <strong>trips</strong> back
-        off, like a well-behaved fuse. Three colors, three truths: <strong>red</strong> —
-        Claude can't see the skill at all; <strong>yellow</strong> — Claude uses it
-        when it makes sense; <strong>green</strong> — it will definitely fire next
-        chat. Your skill files stay right where they are.
+        off, like a well-behaved fuse. Red means Claude can't see the skill at all.
+        Green means it's live — and a <strong>⚡</strong> on the paddle means it will
+        definitely fire next chat, then trip. Your skill files stay right where
+        they are.
         Skills that ship with Claude show up as <strong>hardwired</strong> circuits:
         always on.
       </p>
@@ -672,10 +671,10 @@
       <div class="a">
         The friendlier front door. A persona bundles several skills into one switch
         that makes Claude act a certain way — marketer, editor, sparring partner.
-        Flip one on and everything in it glows yellow — Claude uses those skills
-        whenever they make sense, in every chat, until you flip it off. (Green is
-        the stronger promise: an armed skill Claude will definitely use next chat.)
-        You don't need to know what a skill is to use one.
+        Flip one on and Claude uses those skills whenever they make sense, in
+        every chat, until you flip it off. (Arming a single breaker is the stronger
+        promise — that skill will definitely fire next chat.) You don't need to
+        know what a skill is to use one.
       </div>
     </details>
     <details>
