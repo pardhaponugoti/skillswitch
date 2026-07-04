@@ -51,6 +51,14 @@ The website lives in `docs/index.html` (GitHub Pages–ready).
 
 Skills that need API keys can declare them in SKILL.md frontmatter — required keys, optional keys, and pick-one-of-N groups — so tools like SkillSwitch can render real setup UI instead of guessing. Spec: [SKILL-ENV.md](SKILL-ENV.md).
 
+## Disclaimer
+
+SkillSwitch is an independent open-source project, not affiliated with or endorsed by Anthropic (Claude) or Vercel (skills.sh). It works by editing Claude Cowork's local skills manifest — an extension point Cowork's own sync deliberately preserves for user-added entries. Everything happens on your machine; nothing phones home.
+
+## Security
+
+Found a vulnerability? Please use [GitHub's private vulnerability reporting](https://github.com/pardhaponugoti/skillswitch/security/advisories/new) rather than a public issue. See [SECURITY.md](SECURITY.md).
+
 ## License
 
 [MIT](LICENSE)
