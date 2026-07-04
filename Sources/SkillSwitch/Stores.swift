@@ -151,6 +151,20 @@ final class SkillStore: ObservableObject {
 
     // MARK: - Personas
 
+    @Published private(set) var personas: [Persona] = PersonaBook.load()
+
+    func addPersona(_ persona: Persona) {
+        guard !personas.contains(where: { $0.id == persona.id }) else { return }
+        personas.append(persona)
+        PersonaBook.save(personas)
+    }
+
+    func removePersona(_ persona: Persona) {
+        personas.removeAll { $0.id == persona.id }
+        PersonaBook.save(personas)
+        message = "\(persona.name.capitalized) removed — its skills stay on the panel."
+    }
+
     /// How much of a persona is currently wired and steadily on.
     func personaState(_ persona: Persona) -> (installed: Int, on: Int) {
         let byId = Dictionary(circuits.map { ($0.skillId, $0) }, uniquingKeysWith: { a, _ in a })

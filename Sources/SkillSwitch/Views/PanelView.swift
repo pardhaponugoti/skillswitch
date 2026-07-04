@@ -188,6 +188,7 @@ struct BreakerBoard: View {
     var addSkills: () -> Void
 
     @State private var removalCandidate: Skill?
+    @State private var showPersonaBuilder = false
     @AppStorage("binExpanded") private var binExpanded = false
     @AppStorage("panelCommissioned") private var commissioned = false
 
@@ -202,21 +203,10 @@ struct BreakerBoard: View {
                     if !commissioned {
                         commissioningCard
                     }
-                    sectionHeader("PERSONAS", detail: "skill zones · steady on")
-                    ForEach(Persona.curated) { persona in
-                        PersonaRow(
-                            persona: persona,
-                            state: store.personaState(persona),
-                            energize: { energize(persona) },
-                            unplug: { store.unplug(persona) }
-                        )
-                    }
-
                     if store.circuits.isEmpty && store.orphans.isEmpty {
                         miniEmptyCircuits
                     } else {
                         sectionHeader("CIRCUITS", detail: "flip to arm · fires once next chat")
-                            .padding(.top, 8)
                         ForEach(store.circuits) { skill in
                             BreakerRow(
                                 skill: skill,
@@ -231,6 +221,9 @@ struct BreakerBoard: View {
                             UnwiredRow(part: orphan) { store.wireIn(orphan) }
                         }
                     }
+
+                    personasSection
+                        .padding(.top, 8)
 
                     if !store.hardwired.isEmpty {
                         sectionHeader("HARDWIRED", detail: "built into Claude · always on")
@@ -268,6 +261,76 @@ struct BreakerBoard: View {
             } message: {
                 Text("Its breaker disappears from the panel and the skill folder is moved to the Trash — drag it back out if you change your mind.")
             }
+        }
+    }
+
+    @ViewBuilder
+    private var personasSection: some View {
+        VStack(spacing: 8) {
+            sectionHeader("PERSONAS", detail: store.personas.isEmpty ? "toolkits you flip on together" : "one flip · whole toolkit")
+
+            if store.personas.isEmpty {
+                VStack(alignment: .leading, spacing: 9) {
+                    Text("A persona is a set of skills you switch on together — marketer, researcher, sparring partner. Energize one and its breakers hold steady ON (green) for every chat.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 8) {
+                        Button {
+                            store.addPersona(.packagedSparringPartner)
+                            energize(Persona.packagedSparringPartner)
+                        } label: { checklistButton("INSTALL SPARRING PARTNER") }
+                        .buttonStyle(PressStyle())
+                        .help("Grill-me, brainstorming, and writing-plans — installed and held steady ON")
+                        Button {
+                            showPersonaBuilder = true
+                        } label: {
+                            Text("BUILD YOUR OWN")
+                                .font(.system(size: 8.5, weight: .heavy, design: .rounded))
+                                .tracking(1)
+                                .foregroundStyle(.white.opacity(0.7))
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Color.white.opacity(0.12)))
+                                .overlay(Capsule().stroke(.black.opacity(0.4), lineWidth: 1))
+                        }
+                        .buttonStyle(PressStyle())
+                    }
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.breaker.opacity(0.55)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(.white.opacity(0.07), lineWidth: 1)
+                )
+            } else {
+                ForEach(store.personas) { persona in
+                    PersonaRow(
+                        persona: persona,
+                        state: store.personaState(persona),
+                        energize: { energize(persona) },
+                        unplug: { store.unplug(persona) }
+                    )
+                    .contextMenu {
+                        Button("Remove persona (keeps its skills)", role: .destructive) {
+                            store.removePersona(persona)
+                        }
+                    }
+                }
+                Button {
+                    showPersonaBuilder = true
+                } label: {
+                    Text("+ BUILD A PERSONA")
+                        .font(.system(size: 8.5, weight: .heavy, design: .rounded))
+                        .tracking(1)
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            }
+        }
+        .sheet(isPresented: $showPersonaBuilder) {
+            PersonaBuilderSheet(store: store, discovery: discovery)
         }
     }
 
@@ -654,6 +717,80 @@ struct PersonaRow: View {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .stroke(fullyOn ? Theme.liveGreen.opacity(0.4) : .white.opacity(0.07), lineWidth: 1)
         )
+    }
+}
+
+/// Build a persona from the skills already on the panel.
+struct PersonaBuilderSheet: View {
+    @ObservedObject var store: SkillStore
+    @ObservedObject var discovery: DiscoveryStore
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name = ""
+    @State private var selected: Set<String> = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("BUILD A PERSONA")
+                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                .tracking(2)
+                .foregroundStyle(Theme.safety)
+
+            TextField("Name it — MARKETER, EDITOR, COACH…", text: $name)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12))
+
+            if store.circuits.isEmpty {
+                Text("No skills on the panel yet — install a few from Add Skills first, then come back and group them.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Pick its skills:")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(store.circuits) { skill in
+                            Toggle(isOn: Binding(
+                                get: { selected.contains(skill.skillId) },
+                                set: { on in
+                                    if on { selected.insert(skill.skillId) } else { selected.remove(skill.skillId) }
+                                }
+                            )) {
+                                Text(skill.name)
+                                    .font(.system(size: 11, design: .monospaced))
+                            }
+                            .toggleStyle(.checkbox)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 180)
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                Button("Create") {
+                    let persona = Persona(
+                        id: UUID(),
+                        name: name.trimmingCharacters(in: .whitespaces).uppercased(),
+                        blurb: "\(selected.count) skills, one flip.",
+                        members: store.circuits
+                            .filter { selected.contains($0.skillId) }
+                            .map { Persona.Member(skillId: $0.skillId, source: discovery.sourceForInstalled($0)) }
+                    )
+                    store.addPersona(persona)
+                    store.energize(persona)
+                    store.message = "\(persona.name.capitalized) built and energized — \(persona.members.count) breakers steady ON."
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || selected.isEmpty)
+            }
+        }
+        .padding(16)
+        .frame(width: 330)
     }
 }
 
