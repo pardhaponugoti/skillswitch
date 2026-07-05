@@ -33,4 +33,15 @@ xcrun stapler staple "$APP"
 rm -f build/SkillSwitch-notarize.zip
 
 ./tools/make-dmg.sh
-echo "Ready to ship: build/SkillSwitch.dmg (signed, notarized, stapled)"
+DMG="build/SkillSwitch.dmg"
+
+# Notarize the DMG itself, not just the app inside it — a downloaded .dmg is
+# what Gatekeeper checks first, so an un-notarized container throws a warning
+# on every open even when the app within is stapled. Sign → notarize → staple
+# the DMG so it opens clean for a nontechnical user with no right-click dance.
+codesign --force --timestamp --sign "$IDENTITY" "$DMG"
+xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
+xcrun stapler staple "$DMG"
+spctl -a -vv -t open --context context:primary-signature "$DMG"
+
+echo "Ready to ship: $DMG (app + DMG signed, notarized, stapled)"
