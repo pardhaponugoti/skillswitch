@@ -15,7 +15,7 @@ struct PanelView: View {
             Theme.wall.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                FaceplateHeader(newerVersion: updates.newerVersion, downloading: updates.downloading) { updates.downloadAndOpen() }
+                FaceplateHeader(updates: updates)
                 tabs
                 content
                 footer
@@ -41,7 +41,7 @@ struct PanelView: View {
             discovery.onInstall = { [weak store] name in
                 store?.scan()
                 store?.message = "\(name) installed and ARMED — it fires in your next Cowork chat."
-                NSSound(named: "Pop")?.play()
+                Chime.pop()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -115,9 +115,9 @@ struct PanelView: View {
 }
 
 struct FaceplateHeader: View {
-    var newerVersion: String? = nil
-    var downloading: Bool = false
-    var onUpdate: () -> Void = {}
+    @ObservedObject var updates: UpdateChecker
+
+    @State private var showSettings = false
 
     var body: some View {
         VStack(spacing: 8) {
@@ -128,10 +128,18 @@ struct FaceplateHeader: View {
                         .tracking(6)
                         .foregroundStyle(Theme.inkDark)
                         .shadow(color: .white.opacity(0.5), radius: 0, y: 1)
-                    if let version = newerVersion {
+                    HStack {
+                        SettingsButton { showSettings.toggle() }
+                            .popover(isPresented: $showSettings, arrowEdge: .bottom) {
+                                SettingsPopover(updates: updates)
+                            }
+                        Spacer()
+                    }
+                    .padding(.leading, 14)
+                    if let version = updates.newerVersion {
                         HStack {
                             Spacer()
-                            UpdateBadge(version: version, downloading: downloading, action: onUpdate)
+                            UpdateBadge(version: version, downloading: updates.downloading) { updates.downloadAndOpen() }
                         }
                         .padding(.trailing, 14)
                     }
@@ -184,6 +192,109 @@ struct UpdateBadge: View {
             : "Version \(version) is available — click to download and open the installer.")
         .onAppear {
             withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { glow = true }
+        }
+    }
+}
+
+/// The settings gear on the faceplate — a small etched control beside the
+/// wordmark that opens the panel's preferences popover.
+struct SettingsButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Theme.inkDark.opacity(0.5))
+                .shadow(color: .white.opacity(0.5), radius: 0, y: 1)
+        }
+        .buttonStyle(PressStyle())
+        .help("Settings")
+    }
+}
+
+/// Preferences popover — mute the panel sounds and check for a newer build.
+struct SettingsPopover: View {
+    @ObservedObject var updates: UpdateChecker
+    @AppStorage(Chime.muteKey) private var muted = false
+    @State private var checking = false
+    @State private var checkedClean = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("SETTINGS")
+                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                .tracking(1.6)
+                .foregroundStyle(Theme.inkDark.opacity(0.85))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle(isOn: Binding(get: { !muted }, set: { muted = !$0 })) {
+                    HStack(spacing: 6) {
+                        Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .frame(width: 16)
+                        Text("Panel sounds")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(Theme.inkDark.opacity(0.9))
+                }
+                .toggleStyle(.switch)
+                .tint(Theme.liveGreen)
+
+                Text(muted ? "Clicks and trips are silenced." : "Clicks and trips play a sound.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.inkDark.opacity(0.55))
+            }
+
+            Divider().overlay(Theme.inkDark.opacity(0.15))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("VERSION")
+                    .font(.system(size: 9, weight: .heavy, design: .rounded))
+                    .tracking(1.6)
+                    .foregroundStyle(Theme.inkDark.opacity(0.5))
+                HStack(spacing: 8) {
+                    Text("SkillSwitch \(updates.currentVersion)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.inkDark.opacity(0.9))
+                    Spacer(minLength: 6)
+                    updateControl
+                }
+            }
+        }
+        .padding(16)
+        .frame(width: 240, alignment: .leading)
+    }
+
+    @ViewBuilder private var updateControl: some View {
+        if let version = updates.newerVersion {
+            Button(action: updates.downloadAndOpen) {
+                Text(updates.downloading ? "DOWNLOADING…" : "GET \(version)")
+                    .font(.system(size: 9, weight: .heavy, design: .rounded))
+                    .tracking(0.6)
+                    .foregroundStyle(Theme.tapeBlack)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3.5)
+                    .background(Capsule().fill(Theme.safety))
+            }
+            .buttonStyle(PressStyle())
+            .disabled(updates.downloading)
+        } else {
+            Button {
+                checking = true
+                checkedClean = false
+                Task {
+                    await updates.check()
+                    checking = false
+                    checkedClean = updates.newerVersion == nil
+                }
+            } label: {
+                Text(checking ? "Checking…" : (checkedClean ? "Up to date ✓" : "Check for updates"))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(checkedClean ? Theme.liveGreen : Theme.inkDark.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+            .disabled(checking)
         }
     }
 }
@@ -253,7 +364,6 @@ struct BreakerBoard: View {
                                 canUpdate: discovery.sourceForInstalled(skill) != nil,
                                 toggle: { store.toggle(skill) },
                                 copy: { store.copyInvocation(skill) },
-                                standby: { store.steadyOn(skill) },
                                 update: { updateSkill(skill) },
                                 remove: { removalCandidate = skill }
                             )
@@ -277,7 +387,6 @@ struct BreakerBoard: View {
                                 canUpdate: false,
                                 toggle: { store.toggle(skill) },
                                 copy: { store.copyInvocation(skill) },
-                                standby: {},
                                 update: {},
                                 remove: {}
                             )
@@ -567,13 +676,12 @@ struct BreakerRow: View {
     let canUpdate: Bool
     let toggle: () -> Void
     let copy: () -> Void
-    let standby: () -> Void
     let update: () -> Void
     let remove: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            RockerSwitch(isOn: skill.enabled, hardwired: skill.isHardwired, steady: skill.isSteadyOn, armed: skill.isArmed, action: toggle)
+            RockerSwitch(isOn: skill.enabled, hardwired: skill.isHardwired, armed: skill.enabled, action: toggle)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(skill.name.uppercased())
@@ -591,12 +699,10 @@ struct BreakerRow: View {
                     .foregroundStyle(.white.opacity(0.35))
                     .lineLimit(1)
                 if !skill.isHardwired {
-                    Text(skill.isArmed
-                        ? "CLAUDE WILL USE IT NEXT CHAT"
-                        : (skill.enabled ? "USED WHEN CLAUDE SEES FIT" : "OFF — CLAUDE CAN'T SEE IT"))
+                    Text(skill.enabled ? "ARMED — FIRES NEXT CHAT, THEN TRIPS OFF" : "OFF — CLAUDE CAN'T SEE IT")
                         .font(.system(size: 7.5, weight: .heavy))
                         .tracking(1)
-                        .foregroundStyle((skill.enabled ? Theme.liveGreen : Theme.offRed).opacity(skill.isArmed || !skill.enabled ? 0.85 : 0.6))
+                        .foregroundStyle((skill.enabled ? Theme.liveGreen : Theme.offRed).opacity(0.85))
                         .lineLimit(1)
                 }
             }
@@ -607,8 +713,6 @@ struct BreakerRow: View {
 
             if !skill.isHardwired {
                 Menu {
-                    Button("On standby — use when it fits", action: standby)
-                        .disabled(skill.isSteadyOn)
                     Button("Update from GitHub", action: update)
                         .disabled(!canUpdate)
                     Divider()
@@ -646,7 +750,7 @@ struct BreakerRow: View {
     }
 }
 
-/// A persona: a curated zone of skills wired in together and held steady ON.
+/// A persona: a curated zone of skills armed together — they fire next chat, then trip.
 struct PersonaRow: View {
     let persona: Persona
     let state: (installed: Int, on: Int)
@@ -660,10 +764,10 @@ struct PersonaRow: View {
             RockerSwitch(
                 isOn: fullyOn,
                 hardwired: false,
-                steady: true,
+                armed: true,
                 helpOverride: fullyOn
-                    ? "ON — Claude uses this persona's skills whenever they make sense. Click to switch off."
-                    : "OFF — click to install anything missing and switch the whole persona on."
+                    ? "ARMED — every skill in this persona fires at the start of your next chat, then trips off. Click to disarm."
+                    : "OFF — click to install anything missing and arm the whole persona for your next chat."
             ) {
                 fullyOn ? unplug() : energize()
             }
@@ -888,7 +992,6 @@ struct BinRow: View {
 struct RockerSwitch: View {
     let isOn: Bool
     let hardwired: Bool
-    var steady: Bool = false
     var armed: Bool = false
     var helpOverride: String? = nil
     let action: () -> Void
@@ -945,13 +1048,12 @@ struct RockerSwitch: View {
         .buttonStyle(.plain)
         .help(helpOverride ?? (hardwired
             ? "Built into Claude — always on"
-            : (steady ? "ON — Claude uses this skill whenever it makes sense. Click to switch off."
-                : (isOn ? "ARMED — Claude will definitely use this at the start of your next chat, then the breaker trips off. Click to disarm."
-                        : "OFF — click to arm for your next chat"))))
+            : (isOn ? "ARMED — Claude uses this at the start of your next chat, then the breaker trips off. Click to disarm."
+                    : "OFF — click to arm it for your next chat")))
     }
 
-    /// Red: unwired — Claude can't see it. Green: on (⚡ = will definitely
-    /// fire next chat, then trip; no bolt = Claude uses it when it fits).
+    /// Red: off — unwired, Claude can't see it. Green + ⚡: armed — fires next
+    /// chat, then trips back to off.
     private var paddleColor: Color {
         if hardwired { return Theme.deadGray }
         return isOn ? Theme.liveGreen : Theme.offRed

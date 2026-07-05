@@ -15,10 +15,8 @@ struct Skill: Identifiable, Hashable {
     let armed: Bool            // manifest description carries the fire-now prefix
     let armedAt: Date?         // when the circuit was flipped on (entry updatedAt)
 
-    /// Amber: fires once at the start of the next chat, then trips.
+    /// Green + ⚡: fires once at the start of the next chat, then trips off.
     var isArmed: Bool { enabled && armed && !isHardwired }
-    /// Green: steadily available (persona-style), never force-fires or trips.
-    var isSteadyOn: Bool { enabled && !armed && !isHardwired }
 
     var id: String { skillId }
     var invocation: String { "/\(name)" }

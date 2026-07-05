@@ -68,7 +68,7 @@ struct PersonasView: View {
                 .font(.system(size: 8, weight: .heavy, design: .rounded))
                 .tracking(1.5)
                 .foregroundStyle(Theme.safety.opacity(0.9))
-            Text("A persona is a bundle of skills that makes Claude act a certain way — a sparring partner, a marketer, an editor. Flip one on and Claude uses those skills whenever they make sense, in every chat. Flip it off any time.")
+            Text("A persona is a bundle of skills that makes Claude act a certain way — a sparring partner, a marketer, an editor. Turn one on and Claude plays that role at the start of your next chat. It fires once, then the switch trips off — turn it on again whenever you want the role back.")
                 .font(.system(size: 10))
                 .foregroundStyle(.white.opacity(0.6))
                 .fixedSize(horizontal: false, vertical: true)
@@ -113,8 +113,8 @@ struct PersonasView: View {
             store.scan()
             store.energize(persona)
             store.message = skippedUnsourced > 0
-                ? "\(persona.name.capitalized) energized — \(skippedUnsourced) local skill(s) couldn't be reinstalled (no known source)."
-                : "\(persona.name.capitalized) is ON — Claude will use its skills whenever they make sense."
+                ? "\(persona.name.capitalized) armed — \(skippedUnsourced) local skill(s) couldn't be reinstalled (no known source)."
+                : "\(persona.name.capitalized) is ARMED — Claude plays the role in your next chat, then the switches trip off."
         }
     }
 }
@@ -158,7 +158,7 @@ struct StarterRow: View {
                     .overlay(Capsule().stroke(.black.opacity(0.4), lineWidth: 1))
             }
             .buttonStyle(PressStyle())
-            .help("Install its skills and switch them on — Claude uses them whenever they fit")
+            .help("Install its skills and arm them — Claude plays the role in your next chat, then they trip off")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
