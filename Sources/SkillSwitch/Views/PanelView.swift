@@ -15,7 +15,7 @@ struct PanelView: View {
             Theme.wall.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                FaceplateHeader(newerVersion: updates.newerVersion) { updates.openReleases() }
+                FaceplateHeader(newerVersion: updates.newerVersion, downloading: updates.downloading) { updates.downloadAndOpen() }
                 tabs
                 content
                 footer
@@ -116,6 +116,7 @@ struct PanelView: View {
 
 struct FaceplateHeader: View {
     var newerVersion: String? = nil
+    var downloading: Bool = false
     var onUpdate: () -> Void = {}
 
     var body: some View {
@@ -130,7 +131,7 @@ struct FaceplateHeader: View {
                     if let version = newerVersion {
                         HStack {
                             Spacer()
-                            UpdateBadge(version: version, action: onUpdate)
+                            UpdateBadge(version: version, downloading: downloading, action: onUpdate)
                         }
                         .padding(.trailing, 14)
                     }
@@ -155,6 +156,7 @@ struct FaceplateHeader: View {
 /// indicator light beside the wordmark that opens the download page.
 struct UpdateBadge: View {
     let version: String
+    var downloading: Bool = false
     let action: () -> Void
     @State private var glow = false
 
@@ -165,7 +167,7 @@ struct UpdateBadge: View {
                     .fill(Theme.offRed)
                     .frame(width: 5, height: 5)
                     .shadow(color: Theme.offRed.opacity(glow ? 0.9 : 0.2), radius: glow ? 4 : 1)
-                Text("UPDATE")
+                Text(downloading ? "DOWNLOADING…" : "UPDATE")
                     .font(.system(size: 7, weight: .heavy, design: .rounded))
                     .tracking(0.8)
                     .foregroundStyle(Theme.tapeBlack)
@@ -176,7 +178,10 @@ struct UpdateBadge: View {
             .overlay(Capsule().stroke(.black.opacity(0.35), lineWidth: 0.8))
         }
         .buttonStyle(PressStyle())
-        .help("Version \(version) is available — click to download the new SkillSwitch.")
+        .disabled(downloading)
+        .help(downloading
+            ? "Downloading SkillSwitch \(version)…"
+            : "Version \(version) is available — click to download and open the installer.")
         .onAppear {
             withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { glow = true }
         }

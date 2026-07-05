@@ -8,8 +8,10 @@ import SwiftUI
 @MainActor
 final class UpdateChecker: ObservableObject {
     @Published private(set) var newerVersion: String?
+    @Published private(set) var downloading = false
 
     private static let latestAPI = URL(string: "https://api.github.com/repos/pardhaponugoti/skillswitch/releases/latest")!
+    private static let dmgURL = URL(string: "https://github.com/pardhaponugoti/skillswitch/releases/latest/download/SkillSwitch.dmg")!
     static let releasesPage = URL(string: "https://github.com/pardhaponugoti/skillswitch/releases/latest")!
 
     var currentVersion: String {
@@ -44,7 +46,40 @@ final class UpdateChecker: ObservableObject {
         return false
     }
 
-    func openReleases() {
-        NSWorkspace.shared.open(Self.releasesPage)
+    /// Download the new DMG straight into ~/Downloads and open it, so the
+    /// familiar drag-to-Applications window appears with no browser detour.
+    /// Falls back to the releases page if anything goes wrong.
+    func downloadAndOpen() {
+        guard !downloading else { return }
+        downloading = true
+        Task {
+            defer { downloading = false }
+            do {
+                let (tmp, response) = try await URLSession.shared.download(from: Self.dmgURL)
+                guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+
+                let downloads = try FileManager.default.url(
+                    for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+                let dest = uniqueDestination(in: downloads, named: "SkillSwitch.dmg")
+                try FileManager.default.moveItem(at: tmp, to: dest)
+                // Opening the .dmg mounts it and shows its drag-install window;
+                // Gatekeeper verifies the notarized image on open.
+                NSWorkspace.shared.open(dest)
+            } catch {
+                NSWorkspace.shared.open(Self.releasesPage)
+            }
+        }
+    }
+
+    private func uniqueDestination(in dir: URL, named name: String) -> URL {
+        let base = (name as NSString).deletingPathExtension
+        let ext = (name as NSString).pathExtension
+        var candidate = dir.appendingPathComponent(name)
+        var n = 1
+        while FileManager.default.fileExists(atPath: candidate.path) {
+            candidate = dir.appendingPathComponent("\(base) \(n).\(ext)")
+            n += 1
+        }
+        return candidate
     }
 }
