@@ -211,6 +211,10 @@ struct BreakerBoard: View {
                         }
                     }
 
+                    if !store.bin.isEmpty {
+                        binSection
+                    }
+
                     if !store.hardwired.isEmpty {
                         sectionHeader("HARDWIRED", detail: "built into Claude · always on")
                             .padding(.top, 8)
@@ -226,10 +230,6 @@ struct BreakerBoard: View {
                                 remove: {}
                             )
                         }
-                    }
-
-                    if !store.bin.isEmpty {
-                        binSection
                     }
                 }
                 .padding(10)
