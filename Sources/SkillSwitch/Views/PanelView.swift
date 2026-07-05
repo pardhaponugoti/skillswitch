@@ -7,6 +7,7 @@ struct PanelView: View {
 
     @StateObject private var store = SkillStore()
     @StateObject private var discovery = DiscoveryStore()
+    @StateObject private var updates = UpdateChecker()
     @State private var tab: Tab = .breakers
 
     var body: some View {
@@ -14,7 +15,7 @@ struct PanelView: View {
             Theme.wall.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                FaceplateHeader()
+                FaceplateHeader(newerVersion: updates.newerVersion) { updates.openReleases() }
                 tabs
                 content
                 footer
@@ -47,6 +48,7 @@ struct PanelView: View {
             store.scan()
             discovery.refreshInstalled()
         }
+        .task { await updates.check() }
     }
 
     private var tabs: some View {
@@ -113,14 +115,26 @@ struct PanelView: View {
 }
 
 struct FaceplateHeader: View {
+    var newerVersion: String? = nil
+    var onUpdate: () -> Void = {}
+
     var body: some View {
         VStack(spacing: 8) {
             VStack(spacing: 2) {
-                Text("SKILLSWITCH")
-                    .font(.system(size: 21, weight: .heavy, design: .rounded))
-                    .tracking(6)
-                    .foregroundStyle(Theme.inkDark)
-                    .shadow(color: .white.opacity(0.5), radius: 0, y: 1)
+                ZStack {
+                    Text("SKILLSWITCH")
+                        .font(.system(size: 21, weight: .heavy, design: .rounded))
+                        .tracking(6)
+                        .foregroundStyle(Theme.inkDark)
+                        .shadow(color: .white.opacity(0.5), radius: 0, y: 1)
+                    if let version = newerVersion {
+                        HStack {
+                            Spacer()
+                            UpdateBadge(version: version, action: onUpdate)
+                        }
+                        .padding(.trailing, 14)
+                    }
+                }
                 Text("SKILL LOAD CENTER · MOD. SS-100 · FOR USE WITH CLAUDE COWORK")
                     .font(.system(size: 6.5, weight: .bold, design: .rounded))
                     .tracking(1.6)
@@ -134,6 +148,38 @@ struct FaceplateHeader: View {
                 .padding(.horizontal, 40)
         }
         .padding(.bottom, 10)
+    }
+}
+
+/// The "new version available" flag on the faceplate — a small blinking
+/// indicator light beside the wordmark that opens the download page.
+struct UpdateBadge: View {
+    let version: String
+    let action: () -> Void
+    @State private var glow = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                Circle()
+                    .fill(Theme.offRed)
+                    .frame(width: 5, height: 5)
+                    .shadow(color: Theme.offRed.opacity(glow ? 0.9 : 0.2), radius: glow ? 4 : 1)
+                Text("UPDATE")
+                    .font(.system(size: 7, weight: .heavy, design: .rounded))
+                    .tracking(0.8)
+                    .foregroundStyle(Theme.tapeBlack)
+            }
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2.5)
+            .background(Capsule().fill(Theme.safety))
+            .overlay(Capsule().stroke(.black.opacity(0.35), lineWidth: 0.8))
+        }
+        .buttonStyle(PressStyle())
+        .help("Version \(version) is available — click to download the new SkillSwitch.")
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { glow = true }
+        }
     }
 }
 
