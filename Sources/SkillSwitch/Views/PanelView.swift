@@ -65,7 +65,7 @@ struct PanelView: View {
         Group {
             switch tab {
             case .breakers:
-                BreakerBoard(store: store, discovery: discovery) { tab = .add }
+                BreakerBoard(store: store, discovery: discovery, addSkills: { tab = .add }, showPersonas: { tab = .personas })
             case .personas:
                 PersonasView(store: store, discovery: discovery)
             case .add:
@@ -225,6 +225,7 @@ struct BreakerBoard: View {
     @ObservedObject var store: SkillStore
     @ObservedObject var discovery: DiscoveryStore
     var addSkills: () -> Void
+    var showPersonas: () -> Void
 
     @State private var removalCandidate: Skill?
     @AppStorage("binExpanded") private var binExpanded = false
@@ -304,10 +305,6 @@ struct BreakerBoard: View {
         }
     }
 
-    private var findSkillsInstalled: Bool {
-        store.circuits.contains { $0.skillId == "find-skills" }
-    }
-
     /// Sub-label for a circuit: who published it, when we know.
     private func provenance(_ skill: Skill) -> String {
         guard let source = discovery.sourceForInstalled(skill),
@@ -321,21 +318,23 @@ struct BreakerBoard: View {
         }
     }
 
-    private var findSkillsArmed: Bool {
-        store.circuits.first { $0.skillId == "find-skills" }?.isArmed == true
-    }
+    /// First three starters make the friendliest intro (roles everyone knows).
+    private var onboardingStarters: [Persona] { Array(Persona.starters.prefix(3)) }
 
     private var commissioningCard: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack {
-                Text("COMMISSIONING CHECKLIST")
-                    .font(.system(size: 9, weight: .heavy, design: .rounded))
-                    .tracking(2)
-                    .foregroundStyle(Theme.tapeBlack)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(RoundedRectangle(cornerRadius: 3).fill(Theme.safety))
-                Spacer()
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("NOT SURE WHERE TO START?")
+                        .font(.system(size: 9.5, weight: .heavy, design: .rounded))
+                        .tracking(1.2)
+                        .foregroundStyle(Theme.safety)
+                    Text("Turn on a persona and Claude plays the role — no skills to pick, no setup.")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 6)
                 Button {
                     withAnimation { commissioned = true }
                 } label: {
@@ -347,47 +346,20 @@ struct BreakerBoard: View {
                 .help("Dismiss")
             }
 
-            checklistRow(
-                number: "1", done: findSkillsInstalled,
-                text: "Wire up find-skills — the skill that finds you more skills."
-            ) {
-                Button {
-                    store.message = "Installing find-skills…"
-                    Task {
-                        await discovery.install(DiscoverySkill(
-                            source: "vercel-labs/skills", skillId: "find-skills",
-                            installs: 0, isOfficial: false
-                        ))
-                        try? CoworkEnvironment.locate()?.disarm(skillId: "find-skills")
-                        store.scan()
-                        store.message = "find-skills is on the panel."
-                    }
-                } label: { checklistButton("INSTALL") }
-                .buttonStyle(PressStyle())
+            ForEach(onboardingStarters) { persona in
+                onboardingPersonaRow(persona)
             }
 
-            checklistRow(
-                number: "2", done: findSkillsArmed,
-                text: "Flip it on, open a Cowork chat, and ask for skills that fit your work."
-            ) {
-                Button {
-                    if let skill = store.circuits.first(where: { $0.skillId == "find-skills" }), !skill.enabled {
-                        store.toggle(skill)
-                    } else {
-                        store.message = "Install find-skills first — step 1."
-                    }
-                } label: { checklistButton("FLIP ON") }
-                .buttonStyle(PressStyle())
+            Button(action: showPersonas) {
+                Text("SEE ALL \(Persona.starters.count) PERSONAS →")
+                    .font(.system(size: 8.5, weight: .heavy, design: .rounded))
+                    .tracking(1)
+                    .foregroundStyle(.white.opacity(0.55))
             }
+            .buttonStyle(.plain)
+            .padding(.top, 1)
         }
-        .onChange(of: findSkillsArmed) { _, armed in
-            if armed {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                    withAnimation { commissioned = true }
-                }
-            }
-        }
-        .padding(10)
+        .padding(11)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.breaker))
         .overlay(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -395,31 +367,62 @@ struct BreakerBoard: View {
         )
     }
 
-    private func checklistRow(number: String, done: Bool, text: String, @ViewBuilder action: () -> some View) -> some View {
-        HStack(alignment: .center, spacing: 8) {
-            Text(done ? "✓" : number)
-                .font(.system(size: 9, weight: .black, design: .rounded))
-                .foregroundStyle(done ? Theme.liveGreen : Theme.safety)
-                .frame(width: 14, height: 14)
-                .background(Circle().fill(.black.opacity(0.4)))
-            Text(text)
-                .font(.system(size: 10))
-                .foregroundStyle(.white.opacity(done ? 0.45 : 0.8))
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 4)
-            if !done { action() }
+    private func onboardingPersonaRow(_ persona: Persona) -> some View {
+        let on = store.personaState(persona).on == persona.members.count && !persona.members.isEmpty
+        return HStack(spacing: 9) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(persona.name)
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.92))
+                Text(persona.blurb)
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: 6)
+            if on {
+                HStack(spacing: 3) {
+                    Image(systemName: "checkmark")
+                    Text("ON")
+                }
+                .font(.system(size: 9, weight: .heavy, design: .rounded))
+                .foregroundStyle(Theme.liveGreen)
+            } else {
+                Button {
+                    turnOnPersona(persona)
+                } label: {
+                    Text("TURN ON")
+                        .font(.system(size: 8.5, weight: .heavy, design: .rounded))
+                        .tracking(0.8)
+                        .foregroundStyle(Theme.tapeBlack)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Theme.safety))
+                        .overlay(Capsule().stroke(.black.opacity(0.4), lineWidth: 1))
+                }
+                .buttonStyle(PressStyle())
+            }
         }
+        .padding(.vertical, 5)
+        .padding(.horizontal, 9)
+        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.black.opacity(0.22)))
     }
 
-    private func checklistButton(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 8.5, weight: .heavy, design: .rounded))
-            .tracking(1)
-            .foregroundStyle(Theme.tapeBlack)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 4)
-            .background(Capsule().fill(Theme.safety))
-            .overlay(Capsule().stroke(.black.opacity(0.4), lineWidth: 1))
+    private func turnOnPersona(_ persona: Persona) {
+        store.addPersona(persona)
+        store.message = "Turning on \(persona.name.capitalized)…"
+        Task {
+            for member in persona.members where !store.circuits.contains(where: { $0.skillId == member.skillId }) {
+                if let source = member.source {
+                    await discovery.install(DiscoverySkill(
+                        source: source, skillId: member.skillId, installs: 0, isOfficial: false))
+                }
+            }
+            store.scan()
+            store.energize(persona)
+            store.message = "\(persona.name.capitalized) is on — Claude plays the role in your next chat."
+        }
     }
 
     private func updateSkill(_ skill: Skill) {
