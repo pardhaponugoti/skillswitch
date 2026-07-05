@@ -264,6 +264,12 @@ struct SettingsPopover: View {
         }
         .padding(16)
         .frame(width: 240, alignment: .leading)
+        // The system popover material is dark in dark mode, but our labels are
+        // faceplate ink (near-black). Give it the light steel background the
+        // rest of the panel uses so the dark ink reads, and force a light
+        // scheme so the arrow/edges match.
+        .background(Theme.steel)
+        .environment(\.colorScheme, .light)
     }
 
     @ViewBuilder private var updateControl: some View {
