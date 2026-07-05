@@ -57,22 +57,25 @@ struct CoworkEnvironment {
 
         let root = fm.homeDirectoryForCurrentUser.appendingPathComponent(
             "Library/Application Support/Claude/local-agent-mode-sessions/skills-plugin", isDirectory: true)
-        guard let orgs = try? fm.contentsOfDirectory(
-            at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+        // Account folders sit at different depths for personal vs. org/team
+        // accounts, so don't assume a fixed nesting — walk the tree (bounded)
+        // and take the newest manifest.json, which is the signed-in account.
+        guard let enumerator = fm.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else { return nil }
 
         var best: (dir: URL, modified: Date)?
-        for org in orgs {
-            guard let accounts = try? fm.contentsOfDirectory(
-                at: org, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-            ) else { continue }
-            for account in accounts {
-                let manifest = account.appendingPathComponent("manifest.json")
-                guard let attributes = try? fm.attributesOfItem(atPath: manifest.path),
-                      let modified = attributes[.modificationDate] as? Date else { continue }
-                if best == nil || modified > best!.modified {
-                    best = (account, modified)
-                }
+        for case let url as URL in enumerator {
+            if enumerator.level > 6 { enumerator.skipDescendants(); continue }
+            guard url.lastPathComponent == "manifest.json",
+                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey]),
+                  values.isRegularFile == true,
+                  let modified = values.contentModificationDate else { continue }
+            let account = url.deletingLastPathComponent()
+            if best == nil || modified > best!.modified {
+                best = (account, modified)
             }
         }
         return best.map { CoworkEnvironment(dir: $0.dir) }
