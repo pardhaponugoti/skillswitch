@@ -31,15 +31,23 @@ enum SkillScanner {
             )
         }
         // Skills the user switched OFF are absent from the manifest (the only
-        // off Cowork honors) — resurrect them as red breakers from the OffBook
-        // as long as their files are still there.
+        // off Cowork honors) — resurrect them as red breakers from the OffBook.
+        // Their files live in SkillSwitch's park (moved there on OFF so Cowork's
+        // sync can't reclaim them); a live folder is only a transient fallback.
         let manifestIds = Set(skills.map { $0.skillId.lowercased() })
         let ghosts = OffBook.skillIds
             .filter { !manifestIds.contains($0.lowercased()) }
             .compactMap { skillId -> Skill? in
-                let dir = env.skillsDir.appendingPathComponent(skillId, isDirectory: true)
-                guard FileManager.default.fileExists(atPath: dir.appendingPathComponent("SKILL.md").path) else {
-                    OffBook.forget(skillId)   // files gone — nothing to flip back on
+                let live = env.skillsDir.appendingPathComponent(skillId, isDirectory: true)
+                let parked = env.parkedDir(skillId: skillId)
+                let fm = FileManager.default
+                let dir: URL
+                if fm.fileExists(atPath: live.appendingPathComponent("SKILL.md").path) {
+                    dir = live
+                } else if fm.fileExists(atPath: parked.appendingPathComponent("SKILL.md").path) {
+                    dir = parked
+                } else {
+                    OffBook.forget(skillId)   // files truly gone — nothing to flip back on
                     return nil
                 }
                 let entry = OffBook.entry(for: skillId) ?? [:]

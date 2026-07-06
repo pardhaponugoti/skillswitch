@@ -154,11 +154,14 @@ struct CoworkEnvironment {
         }
     }
 
-    /// Truly hide a user skill from Claude: remove its manifest entry, keep
-    /// its files. (Cowork loads every manifest entry into sessions regardless
-    /// of the `enabled` flag — verified against session logs — so entry
-    /// removal is the only real OFF.) Returns the removed entry so the caller
-    /// can remember it for rewiring.
+    /// Truly hide a user skill from Claude: remove its manifest entry and move
+    /// its folder into SkillSwitch's own park, out of Cowork's reach. (Cowork
+    /// loads every manifest entry into sessions regardless of the `enabled`
+    /// flag — verified against session logs — so entry removal is the only real
+    /// OFF. But Cowork's sync then garbage-collects any `skills/<id>/` folder
+    /// with no matching entry, so leaving the files there loses them — and the
+    /// red flip-back-on breaker with them. Parking keeps them safe.) Returns the
+    /// removed entry so the caller can remember it for rewiring.
     func unwire(skillId: String) throws -> [String: Any] {
         var manifest = try readManifest()
         guard var entries = manifest["skills"] as? [[String: Any]] else { throw CoworkError.badManifest }
@@ -173,13 +176,17 @@ struct CoworkEnvironment {
         entry["enabled"] = false
         manifest["skills"] = entries
         try write(manifest: manifest)
+        // Entry is gone; move the folder before Cowork's sync can reclaim it.
+        park(skillId: skillId)
         return entry
     }
 
     /// Put a previously unwired entry back on the panel (OFF-shaped: the
-    /// caller arms or steadies it as a separate step).
+    /// caller arms or steadies it as a separate step). Restores the parked
+    /// folder first so Cowork never sees an entry without its files.
     func rewire(entry: [String: Any]) throws {
         guard let skillId = entry["skillId"] as? String else { throw CoworkError.badManifest }
+        unpark(skillId: skillId)
         var manifest = try readManifest()
         guard var entries = manifest["skills"] as? [[String: Any]] else { throw CoworkError.badManifest }
         if let index = entries.firstIndex(where: { $0["skillId"] as? String == skillId }) {
@@ -189,6 +196,57 @@ struct CoworkEnvironment {
         }
         manifest["skills"] = entries
         try write(manifest: manifest)
+    }
+
+    // MARK: - Parking
+    //
+    // Cowork garbage-collects any skills/<id>/ folder with no manifest entry, so
+    // an OFF (or tripped) skill's files must live outside Cowork's tree or they
+    // vanish. We hold them in SkillSwitch's own Application Support folder and
+    // move them back when the skill is armed again.
+
+    static var parkedRoot: URL {
+        let base = (FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support"))
+            .appendingPathComponent("SkillSwitch/parked", isDirectory: true)
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        return base
+    }
+
+    func parkedDir(skillId: String) -> URL {
+        Self.parkedRoot.appendingPathComponent(skillId, isDirectory: true)
+    }
+
+    /// True when a parked copy with real skill files exists.
+    func hasParked(skillId: String) -> Bool {
+        FileManager.default.fileExists(
+            atPath: parkedDir(skillId: skillId).appendingPathComponent("SKILL.md").path)
+    }
+
+    /// Move an OFF skill's folder out of Cowork's skills dir into the park.
+    /// Best-effort: if Cowork already reclaimed it, there's nothing to save.
+    func park(skillId: String) {
+        let fm = FileManager.default
+        let live = skillsDir.appendingPathComponent(skillId, isDirectory: true)
+        guard fm.fileExists(atPath: live.path) else { return }
+        let parked = parkedDir(skillId: skillId)
+        try? fm.removeItem(at: parked)          // clear any stale parked copy
+        try? fm.moveItem(at: live, to: parked)
+    }
+
+    /// Move a parked skill's folder back into Cowork's skills dir. No-op if
+    /// nothing is parked; if a live copy already exists, drop the parked dupe.
+    func unpark(skillId: String) {
+        let fm = FileManager.default
+        let parked = parkedDir(skillId: skillId)
+        guard fm.fileExists(atPath: parked.path) else { return }
+        let live = skillsDir.appendingPathComponent(skillId, isDirectory: true)
+        if fm.fileExists(atPath: live.path) {
+            try? fm.removeItem(at: parked)
+        } else {
+            try? fm.createDirectory(at: skillsDir, withIntermediateDirectories: true)
+            try? fm.moveItem(at: parked, to: live)
+        }
     }
 
     private func update(skillId: String, _ mutate: (inout [String: Any]) -> Void) throws {
