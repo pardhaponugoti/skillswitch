@@ -14,9 +14,15 @@ final class UpdateChecker: ObservableObject {
     private static let dmgURL = URL(string: "https://github.com/pardhaponugoti/skillswitch/releases/latest/download/SkillSwitch.dmg")!
     static let releasesPage = URL(string: "https://github.com/pardhaponugoti/skillswitch/releases/latest")!
 
-    var currentVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+    private var bundleVersion: String? {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
     }
+
+    var currentVersion: String { bundleVersion ?? "0.0.0" }
+
+    /// What the faceplate etches after "MOD." — unbundled dev runs have no
+    /// Info.plist, so they read "DEV" rather than a bogus number.
+    var displayVersion: String { bundleVersion ?? "DEV" }
 
     func check() async {
         var request = URLRequest(url: Self.latestAPI)

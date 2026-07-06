@@ -21,6 +21,13 @@ if ! security find-identity -v -p codesigning | grep -q "Developer ID Applicatio
     exit 1
 fi
 
+# The site's faceplate and footer etch the same "MOD." plate as the app, so
+# stamp them with the shipping version. The pattern matches whatever was there
+# last release, so re-stamping stays idempotent.
+VERSION=$(sed -n 's:.*<key>CFBundleShortVersionString</key><string>\(.*\)</string>.*:\1:p' build-app.sh)
+[ -n "$VERSION" ] || { echo "Could not read version from build-app.sh" >&2; exit 1; }
+sed -E -i '' "s/MOD\. [A-Za-z0-9.-]+/MOD. $VERSION/g" docs/index.html
+
 ./build-app.sh
 APP="build/SkillSwitch.app"
 
@@ -45,3 +52,4 @@ xcrun stapler staple "$DMG"
 spctl -a -vv -t open --context context:primary-signature "$DMG"
 
 echo "Ready to ship: $DMG (app + DMG signed, notarized, stapled)"
+echo "docs/index.html stamped MOD. $VERSION — commit and push to update the site"

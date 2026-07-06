@@ -144,7 +144,7 @@ struct FaceplateHeader: View {
                         .padding(.trailing, 14)
                     }
                 }
-                Text("SKILL LOAD CENTER · MOD. SS-100 · FOR USE WITH CLAUDE COWORK")
+                Text("SKILL LOAD CENTER · MOD. \(updates.displayVersion) · FOR USE WITH CLAUDE COWORK")
                     .font(.system(size: 6.5, weight: .bold, design: .rounded))
                     .tracking(1.6)
                     .foregroundStyle(Theme.inkDark.opacity(0.55))
