@@ -78,8 +78,14 @@ final class SkillStore: ObservableObject {
         do {
             if try env.entry(skillId: skill.skillId) != nil {
                 try env.remove(skillId: skill.skillId)
-            } else {
-                try? FileManager.default.trashItem(at: skill.directory, resultingItemURL: nil)
+            }
+            // Sweep every remaining copy — parked and live leftover alike — so
+            // no stray folder resurrects a ghost or an INSTALLED badge later.
+            let fm = FileManager.default
+            for dir in [env.parkedDir(skillId: skill.skillId),
+                        env.skillsDir.appendingPathComponent(skill.skillId, isDirectory: true)]
+            where fm.fileExists(atPath: dir.path) {
+                try? fm.trashItem(at: dir, resultingItemURL: nil)
             }
             OffBook.forget(skill.skillId)
             SourceBook.forget(skill.skillId)
@@ -203,7 +209,8 @@ final class SkillStore: ObservableObject {
         guard !fired.isEmpty, let env = CoworkEnvironment.locate() else { return }
 
         for skillId in fired {
-            if let removed = try? env.unwire(skillId: skillId) {
+            // keepLive: the chat that fired this skill may still read its files.
+            if let removed = try? env.unwire(skillId: skillId, keepLive: true) {
                 OffBook.record(removed, for: skillId)
             }
         }

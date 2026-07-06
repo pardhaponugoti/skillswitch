@@ -162,7 +162,11 @@ struct CoworkEnvironment {
     /// with no matching entry, so leaving the files there loses them — and the
     /// red flip-back-on breaker with them. Parking keeps them safe.) Returns the
     /// removed entry so the caller can remember it for rewiring.
-    func unwire(skillId: String) throws -> [String: Any] {
+    ///
+    /// `keepLive: true` copies to the park instead of moving — for trips, where
+    /// the chat that fired the skill may still read its files mid-session.
+    /// Cowork's sync reaps the leftover live copy on its own.
+    func unwire(skillId: String, keepLive: Bool = false) throws -> [String: Any] {
         var manifest = try readManifest()
         guard var entries = manifest["skills"] as? [[String: Any]] else { throw CoworkError.badManifest }
         guard let index = entries.firstIndex(where: { $0["skillId"] as? String == skillId }) else {
@@ -176,8 +180,8 @@ struct CoworkEnvironment {
         entry["enabled"] = false
         manifest["skills"] = entries
         try write(manifest: manifest)
-        // Entry is gone; move the folder before Cowork's sync can reclaim it.
-        park(skillId: skillId)
+        // Entry is gone; get the folder to safety before Cowork's sync reclaims it.
+        park(skillId: skillId, keepLive: keepLive)
         return entry
     }
 
@@ -225,13 +229,19 @@ struct CoworkEnvironment {
 
     /// Move an OFF skill's folder out of Cowork's skills dir into the park.
     /// Best-effort: if Cowork already reclaimed it, there's nothing to save.
-    func park(skillId: String) {
+    /// `keepLive` copies instead, leaving the live folder for a chat that's
+    /// still using it; Cowork's sync deletes that leftover, not us.
+    func park(skillId: String, keepLive: Bool = false) {
         let fm = FileManager.default
         let live = skillsDir.appendingPathComponent(skillId, isDirectory: true)
         guard fm.fileExists(atPath: live.path) else { return }
         let parked = parkedDir(skillId: skillId)
         try? fm.removeItem(at: parked)          // clear any stale parked copy
-        try? fm.moveItem(at: live, to: parked)
+        if keepLive {
+            try? fm.copyItem(at: live, to: parked)
+        } else {
+            try? fm.moveItem(at: live, to: parked)
+        }
     }
 
     /// Move a parked skill's folder back into Cowork's skills dir. No-op if

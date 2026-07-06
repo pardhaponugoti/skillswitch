@@ -134,7 +134,10 @@ final class DiscoveryStore: ObservableObject {
             installedNames = []
             return
         }
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: env.skillsDir.path)) ?? []
+        let fm = FileManager.default
+        // OFF skills are parked outside Cowork's tree — still installed.
+        let names = ((try? fm.contentsOfDirectory(atPath: env.skillsDir.path)) ?? [])
+            + ((try? fm.contentsOfDirectory(atPath: CoworkEnvironment.parkedRoot.path)) ?? [])
         installedNames = Set(names.filter { !$0.hasPrefix(".") })
     }
 
