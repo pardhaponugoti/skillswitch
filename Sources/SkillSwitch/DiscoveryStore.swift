@@ -135,9 +135,11 @@ final class DiscoveryStore: ObservableObject {
             return
         }
         let fm = FileManager.default
-        // OFF skills are parked outside Cowork's tree — still installed.
+        // OFF skills are parked outside Cowork's tree — still installed. Only
+        // this account's park counts: another account's parked skills must
+        // not read as INSTALLED here.
         let names = ((try? fm.contentsOfDirectory(atPath: env.skillsDir.path)) ?? [])
-            + ((try? fm.contentsOfDirectory(atPath: CoworkEnvironment.parkedRoot.path)) ?? [])
+            + ((try? fm.contentsOfDirectory(atPath: env.parkedAccountRoot.path)) ?? [])
         installedNames = Set(names.filter { !$0.hasPrefix(".") })
     }
 

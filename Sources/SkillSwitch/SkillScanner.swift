@@ -8,6 +8,10 @@ enum SkillScanner {
         guard let env = CoworkEnvironment.locate(),
               let entries = try? env.readSkillEntries() else { return nil }
 
+        // Fold pre-0.9.6 global OFF state into this account's namespace once.
+        OffBook.adoptLegacy(into: env.accountKey)
+        env.adoptLegacyPark()
+
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
@@ -37,7 +41,7 @@ enum SkillScanner {
         // skill that went OFF before parking existed — rescue it now, before
         // Cowork's sync gets to it.
         let manifestIds = Set(skills.map { $0.skillId.lowercased() })
-        let ghosts = OffBook.skillIds
+        let ghosts = OffBook.skillIds(account: env.accountKey)
             .filter { !manifestIds.contains($0.lowercased()) }
             .compactMap { skillId -> Skill? in
                 let live = env.skillsDir.appendingPathComponent(skillId, isDirectory: true)
@@ -48,10 +52,10 @@ enum SkillScanner {
                     env.park(skillId: skillId)
                     dir = env.hasParked(skillId: skillId) ? env.parkedDir(skillId: skillId) : live
                 } else {
-                    OffBook.forget(skillId)   // files truly gone — nothing to flip back on
+                    OffBook.forget(skillId, account: env.accountKey)   // files truly gone — nothing to flip back on
                     return nil
                 }
-                let entry = OffBook.entry(for: skillId) ?? [:]
+                let entry = OffBook.entry(for: skillId, account: env.accountKey) ?? [:]
                 return Skill(
                     skillId: skillId,
                     name: entry["name"] as? String ?? skillId,
@@ -134,14 +138,15 @@ enum SkillToggler {
         guard skill.enabled != enabled else { return }
         guard let env = CoworkEnvironment.locate() else { throw CoworkError.notFound }
         if enabled {
-            if let remembered = OffBook.entry(for: skill.skillId), (try env.entry(skillId: skill.skillId)) == nil {
+            if let remembered = OffBook.entry(for: skill.skillId, account: env.accountKey),
+               (try env.entry(skillId: skill.skillId)) == nil {
                 try env.rewire(entry: remembered)
-                OffBook.forget(skill.skillId)
+                OffBook.forget(skill.skillId, account: env.accountKey)
             }
             try env.arm(skillId: skill.skillId)
         } else {
             let removed = try env.unwire(skillId: skill.skillId)
-            OffBook.record(removed, for: skill.skillId)
+            OffBook.record(removed, for: skill.skillId, account: env.accountKey)
         }
     }
 }

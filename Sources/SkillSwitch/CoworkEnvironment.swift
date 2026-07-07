@@ -30,6 +30,18 @@ struct CoworkEnvironment {
     var manifestURL: URL { dir.appendingPathComponent("manifest.json") }
     var skillsDir: URL { dir.appendingPathComponent("skills", isDirectory: true) }
 
+    /// Stable namespace for SkillSwitch's own bookkeeping (the park, OffBook).
+    /// Two Cowork accounts on one Mac — say a work org and a personal account —
+    /// must never share OFF state: a skill switched off on one must not surface,
+    /// or get rewired, on the other. The last two path components (org/account
+    /// for team accounts; still unique per account dir for personal layouts)
+    /// identify the account.
+    var accountKey: String {
+        let account = dir.lastPathComponent
+        let org = dir.deletingLastPathComponent().lastPathComponent
+        return "\(org)_\(account)"
+    }
+
     /// Cowork keeps chat sessions under `local-agent-mode-sessions/<accountId>/<orgId>/`
     /// — the mirror image of the skills-plugin path, which is `<orgId>/<accountId>`.
     /// `SKILLSWITCH_SESSIONS_DIR` overrides for tests.
@@ -209,7 +221,14 @@ struct CoworkEnvironment {
     // vanish. We hold them in SkillSwitch's own Application Support folder and
     // move them back when the skill is armed again.
 
+    /// `SKILLSWITCH_PARK_DIR` overrides for tests, keeping them out of the
+    /// real Application Support folder.
     static var parkedRoot: URL {
+        if let override = ProcessInfo.processInfo.environment["SKILLSWITCH_PARK_DIR"], !override.isEmpty {
+            let dir = URL(fileURLWithPath: override, isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            return dir
+        }
         let base = (FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support"))
             .appendingPathComponent("SkillSwitch/parked", isDirectory: true)
@@ -217,8 +236,32 @@ struct CoworkEnvironment {
         return base
     }
 
+    /// Parked skills are segregated per account so OFF state never crosses
+    /// between two Cowork accounts on the same Mac.
+    var parkedAccountRoot: URL {
+        Self.parkedRoot.appendingPathComponent(accountKey, isDirectory: true)
+    }
+
     func parkedDir(skillId: String) -> URL {
-        Self.parkedRoot.appendingPathComponent(skillId, isDirectory: true)
+        parkedAccountRoot.appendingPathComponent(skillId, isDirectory: true)
+    }
+
+    /// 0.9.4–0.9.5 parked skills flat at parked/<skillId>. Fold those into
+    /// this account's namespace — they could only have been parked while it
+    /// was the signed-in account. A flat legacy entry is a folder holding a
+    /// SKILL.md; account namespaces never do, so detection can't misfire.
+    func adoptLegacyPark() {
+        let fm = FileManager.default
+        guard let children = try? fm.contentsOfDirectory(
+            at: Self.parkedRoot, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+        ) else { return }
+        for child in children
+        where fm.fileExists(atPath: child.appendingPathComponent("SKILL.md").path) {
+            let dest = parkedDir(skillId: child.lastPathComponent)
+            guard !fm.fileExists(atPath: dest.path) else { continue }
+            try? fm.createDirectory(at: parkedAccountRoot, withIntermediateDirectories: true)
+            try? fm.moveItem(at: child, to: dest)
+        }
     }
 
     /// True when a parked copy with real skill files exists.
@@ -236,6 +279,7 @@ struct CoworkEnvironment {
         let live = skillsDir.appendingPathComponent(skillId, isDirectory: true)
         guard fm.fileExists(atPath: live.path) else { return }
         let parked = parkedDir(skillId: skillId)
+        try? fm.createDirectory(at: parkedAccountRoot, withIntermediateDirectories: true)
         try? fm.removeItem(at: parked)          // clear any stale parked copy
         if keepLive {
             try? fm.copyItem(at: live, to: parked)

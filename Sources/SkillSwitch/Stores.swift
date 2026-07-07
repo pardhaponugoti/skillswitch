@@ -25,7 +25,9 @@ final class SkillStore: ObservableObject {
             coworkFound = false
         }
         if coworkFound, let env = CoworkEnvironment.locate() {
-            orphans = SkillScanner.scanOrphans(env: env, manifestIds: Set(skills.map(\.skillId)).union(OffBook.skillIds))
+            orphans = SkillScanner.scanOrphans(
+                env: env,
+                manifestIds: Set(skills.map(\.skillId)).union(OffBook.skillIds(account: env.accountKey)))
             bin = SkillScanner.scanClaudeCode(
                 manifestUserIds: Set(circuits.map(\.skillId)),
                 builtinIds: Set(hardwired.map(\.skillId))
@@ -87,7 +89,7 @@ final class SkillStore: ObservableObject {
             where fm.fileExists(atPath: dir.path) {
                 try? fm.trashItem(at: dir, resultingItemURL: nil)
             }
-            OffBook.forget(skill.skillId)
+            OffBook.forget(skill.skillId, account: env.accountKey)
             SourceBook.forget(skill.skillId)
             Chime.pop()
             scan()
@@ -151,9 +153,10 @@ final class SkillStore: ObservableObject {
     func energize(_ persona: Persona) {
         guard let env = CoworkEnvironment.locate() else { return }
         for member in persona.members where circuits.contains(where: { $0.skillId == member.skillId }) {
-            if let remembered = OffBook.entry(for: member.skillId), (try? env.entry(skillId: member.skillId)) == nil {
+            if let remembered = OffBook.entry(for: member.skillId, account: env.accountKey),
+               (try? env.entry(skillId: member.skillId)) == nil {
                 try? env.rewire(entry: remembered)
-                OffBook.forget(member.skillId)
+                OffBook.forget(member.skillId, account: env.accountKey)
             }
             try? env.arm(skillId: member.skillId)
         }
@@ -166,7 +169,7 @@ final class SkillStore: ObservableObject {
         guard let env = CoworkEnvironment.locate() else { return }
         for member in persona.members where circuits.contains(where: { $0.skillId == member.skillId }) {
             if let removed = try? env.unwire(skillId: member.skillId) {
-                OffBook.record(removed, for: member.skillId)
+                OffBook.record(removed, for: member.skillId, account: env.accountKey)
             }
         }
         Chime.pop()
@@ -211,7 +214,7 @@ final class SkillStore: ObservableObject {
         for skillId in fired {
             // keepLive: the chat that fired this skill may still read its files.
             if let removed = try? env.unwire(skillId: skillId, keepLive: true) {
-                OffBook.record(removed, for: skillId)
+                OffBook.record(removed, for: skillId, account: env.accountKey)
             }
         }
         Chime.trip()
