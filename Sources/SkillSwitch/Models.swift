@@ -14,6 +14,8 @@ struct Skill: Identifiable, Hashable {
     let enabled: Bool
     let armed: Bool            // manifest description carries the fire-now prefix
     let armedAt: Date?         // when the circuit was flipped on (entry updatedAt)
+    let manualOnly: Bool       // SKILL.md has disable-model-invocation: true —
+                               // Claude can't start it; the user types /name
 
     /// Green + ⚡: fires once at the start of the next chat, then trips off.
     var isArmed: Bool { enabled && armed && !isHardwired }

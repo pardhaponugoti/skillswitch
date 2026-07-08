@@ -132,17 +132,42 @@ struct CoworkEnvironment {
     /// Arming prepends this instruction; tripping/disarming strips it.
     static let armPrefix = "IMPORTANT — the user armed this skill to run now: invoke it at the very start of the conversation, before anything else, even if the user's message doesn't mention it. The skill: "
 
+    /// Some skills ship with `disable-model-invocation: true` — Cowork blocks
+    /// the model from starting them; only the user's slash command can. For
+    /// those, arming instead tells Claude to hand the user the switch: prompt
+    /// them to type the command right at the start of the chat. When they do,
+    /// the invocation lands in the session log and the breaker trips normally.
+    static let armPrefixManual = "IMPORTANT — the user armed this skill to run now, but it can only be started by the user, not by you: at the very start of the conversation, before anything else, tell the user to type this skill's slash command (its name with a leading /) to begin. The skill: "
+
     static func strippedDescription(_ description: String) -> String {
-        description.hasPrefix(armPrefix) ? String(description.dropFirst(armPrefix.count)) : description
+        for prefix in [armPrefix, armPrefixManual] where description.hasPrefix(prefix) {
+            return String(description.dropFirst(prefix.count))
+        }
+        return description
     }
 
-    /// Switch a user skill ON as a one-shot: enabled, with the fire-now prefix.
+    static func isArmedDescription(_ description: String) -> Bool {
+        description.hasPrefix(armPrefix) || description.hasPrefix(armPrefixManual)
+    }
+
+    /// True when the skill's SKILL.md carries `disable-model-invocation: true`.
+    /// Checks the live folder first, then the park (OFF skills live there).
+    func isManualOnly(skillId: String) -> Bool {
+        for dir in [skillsDir.appendingPathComponent(skillId, isDirectory: true),
+                    parkedDir(skillId: skillId)] {
+            guard let text = try? String(contentsOf: dir.appendingPathComponent("SKILL.md"), encoding: .utf8) else { continue }
+            return Frontmatter.parse(text)["disable-model-invocation"] == "true"
+        }
+        return false
+    }
+
+    /// Switch a user skill ON as a one-shot: enabled, with the fire-now prefix
+    /// (or, for manual-only skills, the ask-the-user prefix).
     func arm(skillId: String) throws {
+        let prefix = isManualOnly(skillId: skillId) ? Self.armPrefixManual : Self.armPrefix
         try update(skillId: skillId) { entry in
-            let description = entry["description"] as? String ?? ""
-            if !description.hasPrefix(Self.armPrefix) {
-                entry["description"] = Self.armPrefix + description
-            }
+            let description = Self.strippedDescription(entry["description"] as? String ?? "")
+            entry["description"] = prefix + description
             entry["enabled"] = true
         }
     }

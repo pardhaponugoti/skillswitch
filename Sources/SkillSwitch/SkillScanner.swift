@@ -30,8 +30,9 @@ enum SkillScanner {
                 // enabled flag, so entry-present IS on. Red only ever means
                 // "no entry" (the OffBook ghosts below).
                 enabled: true,
-                armed: rawDescription.hasPrefix(CoworkEnvironment.armPrefix),
-                armedAt: updatedAt
+                armed: CoworkEnvironment.isArmedDescription(rawDescription),
+                armedAt: updatedAt,
+                manualOnly: creator == "user" && env.isManualOnly(skillId: skillId)
             )
         }
         // Skills the user switched OFF are absent from the manifest (the only
@@ -64,7 +65,8 @@ enum SkillScanner {
                     source: .user,
                     enabled: false,
                     armed: false,
-                    armedAt: nil
+                    armedAt: nil,
+                    manualOnly: env.isManualOnly(skillId: skillId)
                 )
             }
 

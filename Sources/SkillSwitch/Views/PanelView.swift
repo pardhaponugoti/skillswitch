@@ -687,7 +687,15 @@ struct BreakerRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            RockerSwitch(isOn: skill.enabled, hardwired: skill.isHardwired, armed: skill.enabled, action: toggle)
+            RockerSwitch(
+                isOn: skill.enabled,
+                hardwired: skill.isHardwired,
+                armed: skill.enabled,
+                helpOverride: skill.manualOnly && skill.enabled
+                    ? "ARMED — this skill only starts when you type \(skill.invocation), so Claude will ask you to at the start of your next chat. It trips off once it runs. Click to disarm."
+                    : nil,
+                action: toggle
+            )
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(skill.name.uppercased())
@@ -705,7 +713,7 @@ struct BreakerRow: View {
                     .foregroundStyle(.white.opacity(0.35))
                     .lineLimit(1)
                 if !skill.isHardwired {
-                    Text(skill.enabled ? "ARMED — FIRES NEXT CHAT, THEN TRIPS OFF" : "OFF — CLAUDE CAN'T SEE IT")
+                    Text(promiseText)
                         .font(.system(size: 7.5, weight: .heavy))
                         .tracking(1)
                         .foregroundStyle((skill.enabled ? Theme.liveGreen : Theme.offRed).opacity(0.85))
@@ -753,6 +761,15 @@ struct BreakerRow: View {
 
     private var dotColor: Color {
         skill.enabled ? Theme.liveGreen : Theme.offRed.opacity(0.55)
+    }
+
+    /// Manual-only skills (disable-model-invocation) can't be auto-started by
+    /// Claude — armed means Claude asks the user to type the slash command.
+    private var promiseText: String {
+        if !skill.enabled { return "OFF — CLAUDE CAN'T SEE IT" }
+        return skill.manualOnly
+            ? "ARMED — CLAUDE WILL ASK YOU TO TYPE \(skill.invocation)"
+            : "ARMED — FIRES NEXT CHAT, THEN TRIPS OFF"
     }
 }
 

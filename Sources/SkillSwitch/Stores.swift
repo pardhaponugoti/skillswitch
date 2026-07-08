@@ -40,34 +40,37 @@ final class SkillStore: ObservableObject {
     }
 
     /// Wire an orphan folder (already inside Cowork's skills dir) into the
-    /// manifest, OFF.
+    /// manifest, armed. (An entry is live the moment it exists — Cowork
+    /// ignores the enabled flag — so green must always mean armed.)
     func wireIn(_ orphan: ExternalSkill) {
         guard let env = CoworkEnvironment.locate() else { return }
         do {
             try env.register(
                 skillId: orphan.skillId, name: orphan.name,
-                description: orphan.description, enabled: false
+                description: orphan.description, enabled: true
             )
+            try env.arm(skillId: orphan.skillId)
             Chime.pop()
             scan()
-            message = "\(orphan.displayName) wired in — flip to arm."
+            message = "\(orphan.displayName) wired in and ARMED — it fires in your next Cowork chat."
         } catch {
             scan()
             message = error.localizedDescription
         }
     }
 
-    /// Copy a Claude Code skill into Cowork and register it, OFF.
+    /// Copy a Claude Code skill into Cowork, registered and armed.
     func importPart(_ part: ExternalSkill) {
         guard part.status == .importable, let env = CoworkEnvironment.locate() else { return }
         do {
             try env.importFolder(at: part.directory, skillId: part.skillId)
+            try env.arm(skillId: part.skillId)
             if let source = SourceBook.fromFrontmatter(directory: part.directory) {
                 SourceBook.record(source, for: part.skillId)
             }
             Chime.pop()
             scan()
-            message = "\(part.displayName) imported from Claude Code — flip to arm."
+            message = "\(part.displayName) imported from Claude Code and ARMED — it fires in your next Cowork chat."
         } catch {
             scan()
             message = error.localizedDescription
