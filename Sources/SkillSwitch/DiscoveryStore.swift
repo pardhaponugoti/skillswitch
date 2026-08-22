@@ -1,4 +1,5 @@
 import Foundation
+import SkillSwitchCore
 
 struct DiscoverySkill: Identifiable, Hashable {
     let source: String    // GitHub "owner/repo"
@@ -227,7 +228,7 @@ final class DiscoveryStore: ObservableObject {
         return nil
     }
 
-    func install(_ skill: DiscoverySkill) async {
+    func install(_ skill: DiscoverySkill, keepOff: Bool = false) async {
         guard !installing.contains(skill.id) else { return }
         installing.insert(skill.id)
         defer { installing.remove(skill.id) }
@@ -305,6 +306,23 @@ final class DiscoveryStore: ObservableObject {
                 try blob.write(to: dest)
             }
 
+            // OFF/parked updates land in the park — never a live unarmed
+            // manifest entry (scan() treats entry-present as green/ARMED).
+            if keepOff {
+                let meta = Frontmatter.parse(
+                    (try? String(contentsOf: staging.appendingPathComponent("SKILL.md"), encoding: .utf8)) ?? ""
+                )
+                try env.parkFreshInstall(
+                    from: staging,
+                    skillId: skill.skillId,
+                    name: meta["name"] ?? skill.skillId,
+                    description: meta["description"] ?? ""
+                )
+                SourceBook.record(skill.source, for: skill.skillId)
+                refreshInstalled()
+                return
+            }
+
             // Swap the staging dir in, keeping the old install as a backup
             // until the move succeeds — a failed reinstall must not destroy a
             // working skill.
@@ -369,22 +387,23 @@ final class DiscoveryStore: ObservableObject {
 
     /// Re-download an installed skill from its GitHub source, preserving its
     /// armed/off state. Returns a footer message.
+    ///
+    /// OFF/parked skills stay OFF: files go to the park and OffBook is
+    /// refreshed. They must not be registered+disarmed — that leaves a live
+    /// unarmed entry, which scan() paints green/ARMED with no fire-now prefix.
     func updateInstalled(_ skill: Skill) async -> String {
         guard let source = sourceForInstalled(skill) else {
             return "Can't tell where \(skill.displayName) came from — no update source on file."
         }
         let wasArmed = skill.isArmed
+        let keepOff = CoworkLayout.updatePlacement(isArmed: wasArmed) == .parkAndRemember
         let shelfSkill = DiscoverySkill(source: source, skillId: skill.skillId, installs: 0, isOfficial: false)
-        await install(shelfSkill)
+        await install(shelfSkill, keepOff: keepOff)
         if let failure = errorMessage {
             return failure.replacingOccurrences(of: "Install failed", with: "Update failed")
         }
-        if let env = CoworkEnvironment.locate() {
-            if wasArmed {
-                try? env.arm(skillId: skill.skillId)
-            } else {
-                try? env.disarm(skillId: skill.skillId)
-            }
+        if !keepOff, let env = CoworkEnvironment.locate() {
+            try? env.arm(skillId: skill.skillId)
         }
         return "\(skill.displayName) updated from \(source)."
     }
