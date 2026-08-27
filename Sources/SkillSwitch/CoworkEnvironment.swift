@@ -1,4 +1,5 @@
 import Foundation
+import SkillSwitchCore
 
 enum CoworkError: LocalizedError {
     case notFound
@@ -42,18 +43,15 @@ struct CoworkEnvironment {
         return "\(org)_\(account)"
     }
 
-    /// Cowork keeps chat sessions under `local-agent-mode-sessions/<accountId>/<orgId>/`
-    /// — the mirror image of the skills-plugin path, which is `<orgId>/<accountId>`.
+    /// Session audit tree for the account `locate()` picked — org *and* personal.
+    /// Path under `skills-plugin/` is mirrored (components reversed) onto
+    /// `local-agent-mode-sessions/`. See `CoworkLayout.sessionsRoot(forPluginDir:)`.
     /// `SKILLSWITCH_SESSIONS_DIR` overrides for tests.
     var sessionsRoot: URL {
         if let override = ProcessInfo.processInfo.environment["SKILLSWITCH_SESSIONS_DIR"], !override.isEmpty {
             return URL(fileURLWithPath: override, isDirectory: true)
         }
-        let account = dir.lastPathComponent
-        let org = dir.deletingLastPathComponent().lastPathComponent
-        return dir.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent(account, isDirectory: true)
-            .appendingPathComponent(org, isDirectory: true)
+        return CoworkLayout.sessionsRoot(forPluginDir: dir)
     }
 
     /// The account folder under Claude's skills-plugin root whose manifest was
@@ -326,6 +324,51 @@ struct CoworkEnvironment {
             try? fm.createDirectory(at: skillsDir, withIntermediateDirectories: true)
             try? fm.moveItem(at: parked, to: live)
         }
+    }
+
+    /// Drop a user skill's manifest entry without moving files. Used when
+    /// fresh files already live in the park (OFF-update) so `unwire` must
+    /// not overwrite that park with a leftover live folder.
+    func dropUserEntry(skillId: String) throws {
+        var manifest = try readManifest()
+        guard var entries = manifest["skills"] as? [[String: Any]] else { throw CoworkError.badManifest }
+        guard let index = entries.firstIndex(where: { $0["skillId"] as? String == skillId }) else {
+            return
+        }
+        guard (entries[index]["creatorType"] as? String ?? "user") == "user" else {
+            throw CoworkError.builtinCollision(skillId)
+        }
+        entries.remove(at: index)
+        manifest["skills"] = entries
+        try write(manifest: manifest)
+    }
+
+    /// Land a staged download in the park and remember it in OffBook.
+    /// No live manifest entry, no fire-now prefix — scan() shows a red ghost.
+    func parkFreshInstall(from staging: URL, skillId: String, name: String, description: String) throws {
+        if (try? entry(skillId: skillId)) != nil {
+            try dropUserEntry(skillId: skillId)
+        }
+        let fm = FileManager.default
+        let live = skillsDir.appendingPathComponent(skillId, isDirectory: true)
+        if fm.fileExists(atPath: live.path) {
+            try? fm.removeItem(at: live)
+        }
+        let dest = parkedDir(skillId: skillId)
+        try fm.createDirectory(at: parkedAccountRoot, withIntermediateDirectories: true)
+        if fm.fileExists(atPath: dest.path) {
+            try fm.removeItem(at: dest)
+        }
+        try fm.moveItem(at: staging, to: dest)
+
+        var remembered = OffBook.entry(for: skillId, account: accountKey) ?? [:]
+        remembered["skillId"] = skillId
+        remembered["name"] = name
+        remembered["description"] = Self.strippedDescription(description)
+        remembered["enabled"] = false
+        if remembered["creatorType"] == nil { remembered["creatorType"] = "user" }
+        if remembered["syncManaged"] == nil { remembered["syncManaged"] = false }
+        OffBook.record(remembered, for: skillId, account: accountKey)
     }
 
     private func update(skillId: String, _ mutate: (inout [String: Any]) -> Void) throws {
